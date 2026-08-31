@@ -18,11 +18,17 @@ export const DOWNLOADS_ROOT = 'Scrubframe';
  * the folder permission without a prompt the panel has no way to show, so the
  * honest behaviour is to write the file somewhere and say where.
  */
-export async function writeArtifact(path: string, base64: string): Promise<WriteReport> {
-  const folder = await folderWriteAttempt(path, base64);
+export async function writeArtifact(
+  path: string,
+  data: string | Blob,
+): Promise<WriteReport> {
+  const folder = await folderWriteAttempt(path, data);
   if (folder.ok) return { target: 'folder', path };
 
-  await downloadArtifact(path, base64);
+  // Only now does a Blob have to become base64: chrome.downloads needs a data:
+  // URL, and a service worker has no URL.createObjectURL. Paying that cost on
+  // the fallback path only is the point of accepting both types.
+  await downloadArtifact(path, typeof data === 'string' ? data : await toBase64(data));
   const report: WriteReport = { target: 'downloads', path: `${DOWNLOADS_ROOT}/${path}` };
   if (folder.because) report.fellBackBecause = folder.because;
   return report;
@@ -30,7 +36,7 @@ export async function writeArtifact(path: string, base64: string): Promise<Write
 
 async function folderWriteAttempt(
   path: string,
-  base64: string,
+  data: string | Blob,
 ): Promise<{ ok: boolean; because?: string }> {
   const root = await readDirectoryHandle();
   if (!root) return { ok: false };
@@ -51,7 +57,7 @@ async function folderWriteAttempt(
   }
 
   try {
-    await writeThroughHandle(root, path, base64);
+    await writeThroughHandle(root, path, data);
     return { ok: true };
   } catch (error) {
     return { ok: false, because: error instanceof Error ? error.message : String(error) };
@@ -61,7 +67,7 @@ async function folderWriteAttempt(
 async function writeThroughHandle(
   root: FileSystemDirectoryHandle,
   path: string,
-  base64: string,
+  data: string | Blob,
 ): Promise<void> {
   const segments = path.split('/').filter(Boolean);
   const filename = segments.pop();
@@ -75,7 +81,7 @@ async function writeThroughHandle(
   const file = await directory.getFileHandle(filename, { create: true });
   const writable = await file.createWritable();
   try {
-    await writable.write(decodeBase64(base64));
+    await writable.write(typeof data === 'string' ? decodeBase64(data) : data);
   } finally {
     // close() is what actually commits the bytes; skipping it on the error
     // path would leave a zero-byte file behind.
@@ -129,6 +135,17 @@ function downloadError(reason: string | undefined, path: string): CdpError {
       : 'Chrome could not save the frame.',
     `${path}: ${reason ?? 'unknown'}`,
   );
+}
+
+/** bytes → base64, in chunks: spreading a large array into fromCharCode blows the stack. */
+export async function toBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }
 
 /**

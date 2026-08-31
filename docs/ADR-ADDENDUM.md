@@ -298,3 +298,103 @@ grep" es comprobable. Cambiar de uno a otro mejora la §7, no la degrada.
 **Sin cambios de código.** El manifest queda igual. Lo que cambia es la §7.2
 (README), la §7.3 (`PERMISSIONS.md`) y la §7.6 (justificación para la store),
 que hoy insinúan lo contrario.
+
+
+---
+
+## Corrección al riesgo de `data:` URL — el permiso `offscreen` no hace falta
+
+Arriba quedó escrito que la Fase 2 necesitaría un documento offscreen, porque
+`OffscreenCanvas` viviría ahí y de paso resolvería el techo de las `data:` URL.
+
+**Las dos mitades eran falsas y se midieron.**
+
+`OffscreenCanvas`, `getContext('2d')`, `createImageBitmap` y `convertToBlob` están
+declarados `Exposed=(Window,Worker)`, y un `ServiceWorkerGlobalScope` cae dentro
+del conjunto `Worker`. Blink incluso mantiene un reftest,
+`OffscreenCanvas-text-rendering-in-worker.html`, que exige que el texto dibujado
+en un worker sea idéntico píxel a píxel al de un canvas de documento.
+
+Lo único que al worker le falta es `URL.createObjectURL` — y componer no lo
+necesita.
+
+Y el techo de `data:` se resolvió por otro lado: al panel lateral se le puede
+entregar el `Blob` directamente al handle de File System Access
+(`writable.write(blob)`), así que la conversión a base64 solo se paga en el
+camino de respaldo a Descargas.
+
+> **No se agrega el permiso `offscreen` a la §7.3.** Predecirlo estaba bien;
+> darlo por hecho habría costado un permiso declarado que nada necesita, en un
+> proyecto cuyo argumento entero de la §7 es *"puede hacer más de lo que hace, y
+> puedes comprobar que no lo hace"*.
+
+---
+
+## Corrección a la §5.1 — el tope de 16 frames por hoja no se sostiene
+
+El SPEC pone "máximo 16 frames por hoja **para que no se pierda detalle al
+reescalar**". El razonamiento es correcto; el número está invertido.
+
+**Lo que decide no es la resolución de origen, es la que se entrega.** Claude
+parte las imágenes en parches de 28×28 y su nivel estándar tope en 1568px de
+lado largo y 1568 parches (~1.22 MP). ChatGPT usa parches de 32×32 y tope
+`detail: high` en 2048px. Todo lo que pase de ahí se tira antes de que el modelo
+lo vea, y lo primero que se come el reescalado es justo lo que aquí importa:
+bordes de 1px y texto chico.
+
+Con 16 por hoja, cada celda aterriza en **279×194px — el 26% del original**. Una
+letra de 16px de la página capturada queda en 4px. Un `translate` de 10px queda
+en 2.6px, por debajo del piso de ruido del codificador.
+
+Y el presupuesto de tokens es **por imagen, no por corrida**. Dos hojas de 6
+entregan el doble de píxeles por frame que una hoja de 12, por el doble de
+tokens — menos de un centavo. La restricción real es el tope de 20 imágenes por
+mensaje de claude.ai, que queda lejísimos.
+
+**Decisión.** El tope se deriva en vez de fijarse: se busca el mayor número de
+frames por hoja cuya celda conserve **≥300px de lado corto**, con **200px como
+piso duro** (Anthropic advierte que el modelo "puede alucinar" con imágenes bajo
+200px). Para el frame real de 1061×736 eso da **6 por hoja**, no 16.
+
+## Corrección a la §5.1 — las columnas siguen la forma del frame
+
+El SPEC fija "máximo 4 columnas". Cuatro es una coincidencia, no una regla.
+
+Una tira de una sola columna con 8 frames apaisados tiene proporción 1:11. Ahí
+el tope de lado largo se alcanza mucho antes que el de área: la hoja usa **504 de
+1568 tokens** y las celdas salen **4× más chicas**. Al revés, forzar 4 columnas
+sobre un banner de 1200×400 da una hoja 5.4:1 con celdas de 377×126; dejar 2
+columnas da 679×226 — **3.23× más área de celda** para la misma corrida.
+
+La rejilla existe para que la hoja quede cuadrada-ish y los dos topes se
+alcancen a la vez. Así que se prueban todas las cantidades de columnas y se
+queda la mejor. Verificado contra el planificador: 1061×736 → 2 columnas;
+1200×400 → 1; 400×800 → 4.
+
+## Corrección a la §5.1 — el header deja de ser un bloque renderizado
+
+El SPEC pide un header con URL, selector, adaptador, total de frames y fecha,
+dibujado en la imagen.
+
+Renderizar texto a pixeles para que un modelo lo saque de vuelta por OCR es una
+decisión rara cuando el mismo dato puede ser una línea de markdown. Todo eso se
+va a `ANIMATION.md`. En la hoja queda **una sola línea de leyenda**, con lo
+mínimo para que la imagen se explique sola si viaja suelta: proyecto, elemento,
+adaptador, número de hoja y el orden de lectura.
+
+## Trampa nueva — la fuente que se calcula a 0px
+
+`OffscreenCanvas` resuelve fuentes con `FontStyleResolver`, que arma sus datos de
+conversión con viewport cero y 10px por defecto. Consecuencia medida: `4vw`,
+`150%` y `larger` se calculan a **0px**. Sin excepción, sin nada en consola, y la
+hoja sale con las etiquetas simplemente ausentes.
+
+Peor: una cadena *inválida* se ignora y conserva la fuente anterior, pero una que
+*parsea a cero* tiene éxito y la pisa.
+
+**Mitigación, una línea:** asignar la fuente y luego exigir
+`ctx.measureText(muestra).width > 0`.
+
+Y siempre terminar la lista de familias en una genérica: una familia que no
+resuelve nunca queda invisible, pero el último recurso de Blink es una **serif**,
+así que `20px "SF Mono"` sale en algo parecido a Times.

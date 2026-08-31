@@ -1,7 +1,8 @@
 import type { CaptureRun } from '../shared/types';
 import { frameName, runDirectory, slug } from '../shared/naming';
 import { createScrollAdapter } from '../adapters/scroll';
-import { writeArtifact } from './artifact-writer';
+import { decodeBase64, writeArtifact } from './artifact-writer';
+import { createContactSheets } from '../output/contact-sheet';
 import { base64Bytes, readPngSize } from './capture-engine';
 import { CdpError, withSession, type CdpSession } from './cdp-session';
 import { clipFor, resolveElement } from './element-handle';
@@ -60,6 +61,7 @@ export async function captureScrollRun(
     try {
       const range = await adapter.getRange({ frames: count, ...(stepPx ? { stepPx } : {}) });
       const stage = await adapter.stage(range);
+      let builder: ReturnType<typeof createContactSheets> | null = null;
       const written: string[] = [];
       /** Where the page actually landed, which is not always where we asked. */
       const positions: number[] = [];
@@ -68,6 +70,8 @@ export async function captureScrollRun(
       let pngHeight = 0;
       let target: CaptureRun['target'] = 'downloads';
       let sizeDrift: string | undefined;
+      const sheets: string[] = [];
+      let sheetSkipped: string | undefined;
 
       // Decided BEFORE the first capture, and never changed again.
       //
@@ -100,6 +104,14 @@ export async function captureScrollRun(
           const png = readPngSize(data);
           pngWidth = png.width;
           pngHeight = png.height;
+          // Built here, not before the loop: the layout depends on the frame's
+          // real pixel size, which is only known once Chrome has returned one.
+          builder = createContactSheets({
+            frame: { width: png.width, height: png.height },
+            totalFrames: count,
+            legend: `${project.name} · ${selection.label} · scroll · ${count} frames`,
+            unit: range.unit,
+          });
           // Verified, not corrected. Changing scale here is what produced the
           // odd first frame; if the prediction is wrong we say so and keep
           // every frame consistent with every other one.
@@ -114,6 +126,32 @@ export async function captureScrollRun(
         written.push(write.path);
         positions.push(landed);
         bytes += base64Bytes(data);
+
+        // The sheet is a convenience; the frames are the deliverable. A sheet
+        // that fails must never take the frames down with it.
+        if (builder && !sheetSkipped) {
+          try {
+            const ready = await builder.add(index, decodeBase64(data), landed);
+            if (ready) {
+              await writeArtifact(`${directory}/${ready.name}`, ready.blob);
+              sheets.push(ready.name);
+            }
+          } catch (error) {
+            sheetSkipped = error instanceof Error ? error.message : String(error);
+          }
+        }
+      }
+
+      if (builder && !sheetSkipped) {
+        try {
+          const last = await builder.finish();
+          if (last) {
+            await writeArtifact(`${directory}/${last.name}`, last.blob);
+            sheets.push(last.name);
+          }
+        } catch (error) {
+          sheetSkipped = error instanceof Error ? error.message : String(error);
+        }
       }
 
       return {
@@ -128,6 +166,8 @@ export async function captureScrollRun(
         bytes,
         positions,
         target,
+        sheets,
+        ...(sheetSkipped ? { sheetSkipped } : {}),
         devicePixelRatio,
         ...(sizeDrift ? { sizeDrift } : {}),
         project: slug(project.name),

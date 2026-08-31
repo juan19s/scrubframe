@@ -173,6 +173,10 @@ export interface CaptureRun {
   positions: number[];
   target: 'folder' | 'downloads';
   devicePixelRatio: number;
+  /** Contact sheet filenames, in order. */
+  sheets: string[];
+  /** Why no sheet was produced. The frames are written either way. */
+  sheetSkipped?: string;
   /** Set when the first frame came back a different size than predicted. */
   sizeDrift?: string;
 }
