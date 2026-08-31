@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { send } from '../../shared/messaging';
-import type { ScreenshotResult } from '../../shared/types';
+import type { CaptureRun, ScreenshotResult } from '../../shared/types';
 import { armFolderPermission, chooseFolder, forgetFolder } from './folder';
 import { MeasureCard } from './MeasureCard';
 import { ProjectCard } from './ProjectCard';
+import { RunCard } from './RunCard';
 import { SelectionCard } from './SelectionCard';
 import { SpikeCard } from './SpikeCard';
 import { usePanelState } from './usePanelState';
@@ -14,6 +15,8 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [spike, setSpike] = useState<SpikeReport | null>(null);
   const [shot, setShot] = useState<ScreenshotResult | null>(null);
+  const [frames, setFrames] = useState(12);
+  const [run, setRun] = useState<CaptureRun | null>(null);
 
   const tabId = panel.tab.id;
   const ready = tabId !== null && busy === null;
@@ -100,6 +103,15 @@ export default function App() {
       return null;
     });
 
+  const captureRun = () =>
+    act(`Capturing ${frames} frames…`, async (id) => {
+      setRun(null);
+      const response = await send({ type: 'capture/run', tabId: id, frames });
+      if (response.ok) setRun(response.data);
+      else panel.setError(response.error);
+      return null;
+    });
+
   const runSpike = () =>
     act('Attaching…', async (id) => {
       setSpike(null);
@@ -152,7 +164,42 @@ export default function App() {
         {panel.measurement && <MeasureCard result={panel.measurement} />}
       </section>
 
-      <section className="flex flex-col gap-2 border-t border-neutral-900 pt-4">
+      <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
+        <div className="flex items-center justify-between">
+          <label htmlFor="scrubframe-frames" className="text-[11px] text-neutral-400">
+            Frames
+          </label>
+          <input
+            id="scrubframe-frames"
+            type="number"
+            min={2}
+            max={60}
+            value={frames}
+            disabled={busy !== null}
+            onChange={(event) => setFrames(Number(event.target.value) || 12)}
+            className="w-16 rounded border border-neutral-800 bg-neutral-950 px-2 py-1 text-right font-mono text-xs text-neutral-100 outline-none focus:border-neutral-600 disabled:opacity-40"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => void captureRun()}
+          disabled={!ready || panel.selection.status !== 'selected'}
+          className="rounded-md bg-white px-3 py-2 text-sm font-medium text-neutral-950 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Capture scroll
+        </button>
+        <p className="text-[11px] leading-snug text-neutral-500">
+          Steps the page through the range where your element crosses the viewport, and
+          captures a frame at each stop.
+        </p>
+        {run && <RunCard run={run} />}
+      </section>
+
+      <details className="border-t border-neutral-900 pt-4">
+        <summary className="cursor-pointer text-[11px] text-neutral-500 hover:text-neutral-300">
+          Single frame
+        </summary>
+        <div className="mt-2 flex flex-col gap-2">
         <button
           type="button"
           onClick={() => void capture()}
@@ -167,7 +214,8 @@ export default function App() {
             {shot.height}, {Math.round(shot.bytes / 1024)} KB
           </p>
         )}
-      </section>
+        </div>
+      </details>
 
       <details className="border-t border-neutral-900 pt-4">
         <summary className="cursor-pointer text-[11px] text-neutral-500 hover:text-neutral-300">

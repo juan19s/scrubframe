@@ -1,4 +1,5 @@
 import { captureSingleFrame } from '../background/capture-engine';
+import { captureScrollRun } from '../background/capture-run';
 import { CdpError } from '../background/cdp-session';
 import { cancelPicking, recordSelection, startPicking } from '../background/picker-control';
 import {
@@ -46,6 +47,8 @@ async function handle(
       return runAttachSpike(message.tabId);
     case 'capture/screenshot':
       return captureSingleFrame(message.tabId);
+    case 'capture/run':
+      return captureScrollRun(message.tabId, message.frames);
     case 'picker/start':
       return startPicking(message.tabId);
     case 'measure/element':

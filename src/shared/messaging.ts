@@ -1,4 +1,5 @@
 import type {
+  CaptureRun,
   Measurement,
   PopupState,
   ProjectState,
@@ -16,6 +17,7 @@ export type Request =
   // popup -> background
   | { type: 'spike/attach-check'; tabId: number }
   | { type: 'capture/screenshot'; tabId: number }
+  | { type: 'capture/run'; tabId: number; frames: number }
   | { type: 'picker/start'; tabId: number }
   | { type: 'measure/element'; tabId: number }
   | { type: 'project/get'; tabId: number }
@@ -30,6 +32,7 @@ export type Request =
 export interface ResultMap {
   'spike/attach-check': SpikeReport;
   'capture/screenshot': ScreenshotResult;
+  'capture/run': CaptureRun;
   'picker/start': SelectionState;
   'measure/element': Measurement;
   'project/get': ProjectState;

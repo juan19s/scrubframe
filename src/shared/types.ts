@@ -8,6 +8,7 @@ export type FailureKind =
   | 'no-tab-access'
   | 'element-gone'
   | 'element-invisible'
+  | 'scroll-hijacked'
   | 'already-attached'
   | 'tab-closed'
   | 'canceled-by-user'
@@ -152,6 +153,25 @@ export interface Measurement {
   /** Where it landed, and whether the project folder was used. */
   write: WriteReport;
   bytes: number;
+}
+
+/** The result of one N-frame capture. */
+export interface CaptureRun {
+  /** Relative to the project root, wherever that is. */
+  directory: string;
+  project: string;
+  frames: number;
+  requested: number;
+  range: { from: number; to: number; unit: 'ms' | 'px' };
+  stage: Box;
+  /** Calibrated once from the first frame so every frame is the same size. */
+  scale: number;
+  pngWidth: number;
+  pngHeight: number;
+  bytes: number;
+  /** Where the page actually landed for each frame, not what we asked for. */
+  positions: number[];
+  target: 'folder' | 'downloads';
 }
 
 /** Everything the popup rehydrates on mount. It keeps no state of its own. */
