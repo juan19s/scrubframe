@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { send } from '../../shared/messaging';
-import type { Measurement, ScrubframeFailure, SelectionState } from '../../shared/types';
+import type {
+  Measurement,
+  ProjectState,
+  ScrubframeFailure,
+  SelectionState,
+} from '../../shared/types';
 
 export interface PanelTab {
   id: number | null;
@@ -21,14 +26,22 @@ export interface PanelState {
   tab: PanelTab;
   selection: SelectionState;
   measurement: Measurement | null;
+  project: ProjectState;
   error: ScrubframeFailure | null;
   refresh: () => void;
   setSelection: (state: SelectionState) => void;
+  setProject: (state: ProjectState) => void;
   setMeasurement: (result: Measurement | null) => void;
   setError: (error: ScrubframeFailure | null) => void;
 }
 
 const NO_TAB: PanelTab = { id: null, url: '', canPick: false };
+const NO_PROJECT: ProjectState = {
+  name: 'project',
+  named: false,
+  folderName: '',
+  folderPermission: 'none',
+};
 
 /**
  * Keeps the panel honest about a tab it does not control.
@@ -43,6 +56,7 @@ export function usePanelState(): PanelState {
   const [tab, setTab] = useState<PanelTab>(NO_TAB);
   const [selection, setSelection] = useState<SelectionState>({ status: 'none' });
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
+  const [project, setProject] = useState<ProjectState>(NO_PROJECT);
   const [error, setError] = useState<ScrubframeFailure | null>(null);
 
   const refresh = useCallback(() => {
@@ -54,13 +68,17 @@ export function usePanelState(): PanelState {
           return;
         }
         setTab({ id: active.id, url: active.url ?? '', canPick: active.url !== undefined });
-        const response = await send({ type: 'state/get', tabId: active.id });
-        if (response.ok) {
-          setSelection(response.data.selection);
-          setMeasurement(response.data.measurement);
+        const [state, projectState] = await Promise.all([
+          send({ type: 'state/get', tabId: active.id }),
+          send({ type: 'project/get', tabId: active.id }),
+        ]);
+        if (state.ok) {
+          setSelection(state.data.selection);
+          setMeasurement(state.data.measurement);
         } else {
-          setError(response.error);
+          setError(state.error);
         }
+        if (projectState.ok) setProject(projectState.data);
       } catch (cause) {
         setError({
           kind: 'no-tab-access',
@@ -101,8 +119,10 @@ export function usePanelState(): PanelState {
     tab,
     selection,
     measurement,
+    project,
     error,
     refresh,
+    setProject,
     setSelection,
     setMeasurement,
     setError,

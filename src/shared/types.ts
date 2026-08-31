@@ -14,6 +14,8 @@ export type FailureKind =
   | 'page-crashed'
   | 'timeout'
   | 'download-failed'
+  | 'folder-permission'
+  | 'write-failed'
   | 'unknown';
 
 export interface ScrubframeFailure {
@@ -96,6 +98,26 @@ export type SelectionState =
   | { status: 'picking' }
   | { status: 'selected'; selection: StoredSelection };
 
+/** The project a site's captures belong to. */
+export interface ProjectState {
+  /** Editable; defaults to the site's registrable name. */
+  name: string;
+  /** True when the user named this site explicitly rather than taking the default. */
+  named: boolean;
+  /** The folder the user chose, if any. Empty means everything goes to Downloads. */
+  folderName: string;
+  folderPermission: 'granted' | 'prompt' | 'denied' | 'none';
+}
+
+/** Where a run's files went, and why. */
+export interface WriteReport {
+  /** 'folder' = the project folder the user chose. 'downloads' = the fallback. */
+  target: 'folder' | 'downloads';
+  path: string;
+  /** Present when we wanted the folder and could not use it. */
+  fellBackBecause?: string;
+}
+
 export interface Box {
   x: number;
   y: number;
@@ -127,6 +149,8 @@ export interface Measurement {
   /** The scale to pass for a 1:1 CSS-pixel frame. */
   scaleForOneToOne: number;
   filename: string;
+  /** Where it landed, and whether the project folder was used. */
+  write: WriteReport;
   bytes: number;
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { captureDirectory, frameName, slug, stamp } from '../src/shared/naming';
+import { captureDirectory, frameName, runDirectory, slug, stamp } from '../src/shared/naming';
 
 describe('slug', () => {
   it('collapses a CSS selector into a path segment', () => {
@@ -52,5 +52,25 @@ describe('frameName', () => {
 
   it('widens padding so frames stay sorted', () => {
     expect(frameName(7, 120)).toBe('frame-007.png');
+  });
+});
+
+describe('runDirectory', () => {
+  const date = new Date(2026, 7, 31, 11, 45, 0);
+
+  it('nests a run under its project', () => {
+    expect(runDirectory('era-residence', 'h1.hero', date)).toBe(
+      'era-residence/20260831-114500_h1-hero',
+    );
+  });
+
+  it('still names the run when nothing is selected', () => {
+    expect(runDirectory('era-residence', null, date)).toBe('era-residence/20260831-114500');
+  });
+
+  it('slugs a project name the user typed by hand', () => {
+    expect(runDirectory('ERA Residence / Estepona', null, date)).toBe(
+      'era-residence-estepona/20260831-114500',
+    );
   });
 });

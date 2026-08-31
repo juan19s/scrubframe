@@ -1,10 +1,12 @@
 import type { Measurement } from '../shared/types';
-import { captureDirectory } from '../shared/naming';
-import { base64Bytes, readPngSize, saveFrame } from './capture-engine';
+import { slug } from '../shared/naming';
+import { base64Bytes, readPngSize } from './capture-engine';
+import { writeArtifact } from './artifact-writer';
 import { CdpError, withSession, type CdpSession } from './cdp-session';
 import { calibrateScale } from './geometry';
 import { clipFor, measureElement, resolveElement, stageFor } from './element-handle';
 import { readSelection, selectionOf, writeMeasurement } from './selection';
+import { projectStateFor } from './project';
 
 /** How far a PNG width may drift from the prediction before we stop believing it. */
 const SCALE_TOLERANCE_PX = 2;
@@ -35,6 +37,7 @@ export async function measureSelection(tabId: number): Promise<Measurement> {
 
   const tab = await chrome.tabs.get(tabId);
   const url = tab.url ?? '';
+  const project = await projectStateFor(url);
 
   const result = await withSession(tabId, async (session) => {
     const { backendNodeId, nodeName } = await resolveElement(session, selection.marker);
@@ -55,8 +58,10 @@ export async function measureSelection(tabId: number): Promise<Measurement> {
     });
 
     const png = readPngSize(data);
-    const filename = `${captureDirectory(url, selection.selector, new Date())}/measure.png`;
-    await saveFrame(data, filename);
+    // One file, overwritten. A diagnostic that leaves a new timestamped folder
+    // behind on every click buries the runs that actually matter.
+    const filename = `${slug(project.name)}/measure.png`;
+    const write = await writeArtifact(filename, data);
 
     const predictedAtDeviceScale = stage.width * devicePixelRatio;
     return {
@@ -74,7 +79,8 @@ export async function measureSelection(tabId: number): Promise<Measurement> {
         devicePixelRatio !== 1 &&
         Math.abs(png.width - predictedAtDeviceScale) <= SCALE_TOLERANCE_PX,
       scaleForOneToOne: calibrateScale(png.width, stage.width, 1),
-      filename,
+      filename: write.path,
+      write,
       bytes: base64Bytes(data),
     };
   });

@@ -36,6 +36,20 @@ export function captureDirectory(url: string, selector: string | null, date: Dat
   return parts.filter((part): part is string => part !== null).join('_');
 }
 
+/**
+ * Where one capture run's files go, inside the project folder.
+ *
+ *   era-residence/20260831-1145_h1-hero/frame-01.png
+ *
+ * One directory per run, because a run's frames belong together. Diagnostics
+ * are different and deliberately do not use this: Measure overwrites a single
+ * file, since a folder per click is what made the output unreadable.
+ */
+export function runDirectory(project: string, selector: string | null, date: Date): string {
+  const name = [stamp(date), selector ? slug(selector) : null].filter(Boolean).join('_');
+  return `${slug(project)}/${name}`;
+}
+
 /** Zero-padded frame filename: frame-01.png. */
 export function frameName(index: number, total: number): string {
   const width = Math.max(2, String(total).length);

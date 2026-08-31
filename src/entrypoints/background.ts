@@ -7,6 +7,7 @@ import {
   registerTabCleanup,
 } from '../background/selection';
 import { measureSelection } from '../background/measure';
+import { projectStateFor, setProjectName } from '../background/project';
 import { runAttachSpike } from '../background/spike';
 import type { Request, ResultMap } from '../shared/messaging';
 import type { ScrubframeFailure } from '../shared/types';
@@ -49,6 +50,10 @@ async function handle(
       return startPicking(message.tabId);
     case 'measure/element':
       return measureSelection(message.tabId);
+    case 'project/get':
+      return projectStateFor(await tabUrl(message.tabId));
+    case 'project/set-name':
+      return setProjectName(await tabUrl(message.tabId), message.name);
     case 'state/get':
       return readPopupState(message.tabId);
     case 'selection/clear':
@@ -83,6 +88,11 @@ function unknownMessage(message: never): never {
     'Scrubframe was reloaded. Close and reopen the side panel.',
     `unhandled message: ${String(type)}`,
   );
+}
+
+async function tabUrl(tabId: number): Promise<string> {
+  const tab = await chrome.tabs.get(tabId);
+  return tab.url ?? '';
 }
 
 function senderTab(sender: chrome.runtime.MessageSender): number {

@@ -46,10 +46,15 @@ export function MeasureCard({ result }: { result: Measurement }) {
       </div>
 
       <p className="mt-3 text-[11px] leading-snug text-neutral-400">
-        Saved <code className="text-neutral-200">{result.filename}</code> —{' '}
+        Saved <code className="text-neutral-200">{result.write.path}</code> —{' '}
         {Math.round(result.bytes / 1024)} KB. Open it: it should contain your element and
-        nothing else.
+        nothing else. Measure overwrites this one file rather than leaving a folder behind.
       </p>
+      {result.write.fellBackBecause && (
+        <p className="mt-1 text-[11px] leading-snug text-amber-300/80">
+          Went to Downloads instead — {result.write.fellBackBecause}.
+        </p>
+      )}
     </div>
   );
 }

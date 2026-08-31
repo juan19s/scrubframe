@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { send } from '../../shared/messaging';
 import type { ScreenshotResult } from '../../shared/types';
+import { armFolderPermission, chooseFolder, forgetFolder } from './folder';
 import { MeasureCard } from './MeasureCard';
+import { ProjectCard } from './ProjectCard';
 import { SelectionCard } from './SelectionCard';
 import { SpikeCard } from './SpikeCard';
 import { usePanelState } from './usePanelState';
@@ -18,6 +20,11 @@ export default function App() {
 
   async function act<T>(label: string, run: (tabId: number) => Promise<T | null>) {
     if (tabId === null || busy !== null) return;
+    // FIRST, before anything else can spend the click's transient activation:
+    // re-arm the folder grant. Chrome drops it on every restart and only a
+    // gesture can ask for it back. From Chrome 143 this shows no dialog, so
+    // the user experiences nothing at all.
+    await armFolderPermission();
     panel.setError(null);
     setBusy(label);
     try {
@@ -26,6 +33,36 @@ export default function App() {
       setBusy(null);
     }
   }
+
+  const rename = (name: string) =>
+    act('Renaming…', async (id) => {
+      const response = await send({ type: 'project/set-name', tabId: id, name });
+      if (response.ok) panel.setProject(response.data);
+      else panel.setError(response.error);
+      return null;
+    });
+
+  const pickFolder = async () => {
+    if (busy !== null) return;
+    panel.setError(null);
+    try {
+      // Not routed through act(): showDirectoryPicker needs the activation
+      // itself, and act() would spend it re-arming a folder we are replacing.
+      const chosen = await chooseFolder();
+      if (chosen) panel.refresh();
+    } catch (error) {
+      panel.setError({
+        kind: 'folder-permission',
+        message: 'Chrome would not open the folder picker.',
+        detail: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  const dropFolder = async () => {
+    await forgetFolder();
+    panel.refresh();
+  };
 
   const pick = () =>
     act('Starting picker…', async (id) => {
@@ -84,6 +121,16 @@ export default function App() {
       {!panel.tab.canPick && tabId !== null && <NoGrantNote />}
 
       <section className="flex flex-col gap-2">
+        <ProjectCard
+          project={panel.project}
+          onRename={(name) => void rename(name)}
+          onChooseFolder={() => void pickFolder()}
+          onForgetFolder={() => void dropFolder()}
+          disabled={busy !== null}
+        />
+      </section>
+
+      <section className="flex flex-col gap-2 border-t border-neutral-900 pt-4">
         <SelectionCard
           state={panel.selection}
           currentUrl={panel.tab.url}

@@ -96,6 +96,26 @@ export function clampToViewport(stage: Rect, viewport: VisualViewport): Rect {
 }
 
 /**
+ * Snaps a rect to whole CSS pixels, growing outward so nothing is cropped.
+ *
+ * A fractional stage makes Chrome round the output, so a 390.2px-wide crop
+ * comes back as a 780px PNG and the calibrated scale lands on
+ * 0.5002303685897436 instead of 0.5. Worse than the ugly number: the rounding
+ * can differ by a pixel between frames, and a contact sheet whose whole point
+ * is that the frames line up cannot afford that.
+ */
+export function snapRect(rect: Rect): Rect {
+  const left = Math.floor(rect.x);
+  const top = Math.floor(rect.y);
+  return {
+    x: left,
+    y: top,
+    width: Math.ceil(rect.x + rect.width) - left,
+    height: Math.ceil(rect.y + rect.height) - top,
+  };
+}
+
+/**
  * Stage (viewport-relative) → clip (document-relative), for one frame.
  *
  * Feed this cssVisualViewport, never cssLayoutViewport: in the protocol the

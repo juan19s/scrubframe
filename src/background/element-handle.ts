@@ -4,6 +4,7 @@ import {
   isCapturable,
   padRect,
   quadToRect,
+  snapRect,
   stageToClip,
   type Clip,
   type Rect,
@@ -139,7 +140,9 @@ export async function measureElement(
  * follows the subject subtracts exactly the motion being captured.
  */
 export function stageFor(box: Rect, viewport: VisualViewport): Rect {
-  return clampToViewport(padRect(box, STAGE_PADDING), viewport);
+  // Snapped last: the clamp can reintroduce fractions from the viewport size,
+  // and every frame in a run has to request the exact same integer dimensions.
+  return snapRect(clampToViewport(padRect(box, STAGE_PADDING), viewport));
 }
 
 export function clipFor(stage: Rect, viewport: VisualViewport, scale: number): Clip {

@@ -1,6 +1,7 @@
 import type {
   Measurement,
   PopupState,
+  ProjectState,
   ScreenshotResult,
   ScrubframeFailure,
   SelectionState,
@@ -17,6 +18,8 @@ export type Request =
   | { type: 'capture/screenshot'; tabId: number }
   | { type: 'picker/start'; tabId: number }
   | { type: 'measure/element'; tabId: number }
+  | { type: 'project/get'; tabId: number }
+  | { type: 'project/set-name'; tabId: number; name: string }
   | { type: 'state/get'; tabId: number }
   | { type: 'selection/clear'; tabId: number }
   // picker -> background. These carry no tabId: the background reads it from
@@ -29,6 +32,8 @@ export interface ResultMap {
   'capture/screenshot': ScreenshotResult;
   'picker/start': SelectionState;
   'measure/element': Measurement;
+  'project/get': ProjectState;
+  'project/set-name': ProjectState;
   'state/get': PopupState;
   'selection/clear': SelectionState;
   'picker/selected': SelectionState;
