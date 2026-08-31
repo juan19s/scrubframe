@@ -71,6 +71,29 @@ export interface SpikeReport {
   verdict: SpikeVerdict;
 }
 
+/** What the picker marked, as stored between popup openings. */
+export interface StoredSelection {
+  /** The token stamped on the element. This is the identity. */
+  marker: string;
+  /** Readable path, for the popup and the capture directory name. Never identity. */
+  selector: string;
+  /** Short form: `article.card`. */
+  label: string;
+  /** The page it was picked on, so we can notice a navigation. */
+  url: string;
+  pickedAt: number;
+}
+
+/**
+ * The popup owns no state of its own — it closes the moment the user clicks
+ * into the page to pick, taking any React state with it. It asks for this on
+ * mount instead.
+ */
+export type SelectionState =
+  | { status: 'none' }
+  | { status: 'picking' }
+  | { status: 'selected'; selection: StoredSelection };
+
 export interface ScreenshotResult {
   filename: string;
   /** Size of the decoded PNG, in bytes. */

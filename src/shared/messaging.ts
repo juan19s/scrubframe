@@ -1,16 +1,34 @@
-import type { ScreenshotResult, ScrubframeFailure, SpikeReport } from './types';
+import type {
+  ScreenshotResult,
+  ScrubframeFailure,
+  SelectionState,
+  SpikeReport,
+} from './types';
 
 /**
  * Every popup -> background message lives here. One union, one place to look,
  * so adding a message without handling it is a compile error.
  */
 export type Request =
+  // popup -> background
   | { type: 'spike/attach-check'; tabId: number }
-  | { type: 'capture/screenshot'; tabId: number };
+  | { type: 'capture/screenshot'; tabId: number }
+  | { type: 'picker/start'; tabId: number }
+  | { type: 'selection/get'; tabId: number }
+  | { type: 'selection/clear'; tabId: number }
+  // picker -> background. These carry no tabId: the background reads it from
+  // the message sender, which is the only trustworthy source for it.
+  | { type: 'picker/selected'; marker: string; selector: string; label: string }
+  | { type: 'picker/cancelled' };
 
 export interface ResultMap {
   'spike/attach-check': SpikeReport;
   'capture/screenshot': ScreenshotResult;
+  'picker/start': SelectionState;
+  'selection/get': SelectionState;
+  'selection/clear': SelectionState;
+  'picker/selected': SelectionState;
+  'picker/cancelled': SelectionState;
 }
 
 export type Response<K extends Request['type']> =

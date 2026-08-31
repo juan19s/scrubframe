@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { send } from '../../shared/messaging';
-import type { ScreenshotResult, ScrubframeFailure, SpikeReport } from '../../shared/types';
+import type {
+  ScreenshotResult,
+  ScrubframeFailure,
+  SelectionState,
+  SpikeReport,
+} from '../../shared/types';
+import { SelectionCard } from './SelectionCard';
 import { SpikeCard } from './SpikeCard';
 
 type Status =
@@ -10,40 +16,42 @@ type Status =
 
 export default function App() {
   const [tabId, setTabId] = useState<number | null>(null);
+  const [tabUrl, setTabUrl] = useState('');
   const [status, setStatus] = useState<Status>({ state: 'idle' });
+  const [selection, setSelection] = useState<SelectionState>({ status: 'none' });
   const [spike, setSpike] = useState<SpikeReport | null>(null);
   const [shot, setShot] = useState<ScreenshotResult | null>(null);
 
-  useEffect(() => {
-    chrome.tabs
-      .query({ active: true, currentWindow: true })
-      .then(([tab]) => setTabId(tab?.id ?? null))
-      .catch((error: unknown) =>
-        setStatus({
-          state: 'failed',
-          error: {
-            kind: 'no-tab-access',
-            message: 'Scrubframe could not read the current tab.',
-            detail: error instanceof Error ? error.message : String(error),
-          },
-        }),
-      );
-  }, []);
-
   const busy = status.state === 'running';
 
-  async function runSpike() {
-    if (tabId === null || busy) return;
-    setSpike(null);
-    setStatus({ state: 'running', label: 'Attaching…' });
-    const response = await send({ type: 'spike/attach-check', tabId });
-    if (response.ok) {
-      setSpike(response.data);
-      setStatus({ state: 'idle' });
-    } else {
-      setStatus({ state: 'failed', error: response.error });
-    }
-  }
+  const fail = useCallback((error: ScrubframeFailure) => setStatus({ state: 'failed', error }), []);
+
+  // The popup is destroyed every time the user clicks into the page to pick,
+  // so it rehydrates from the background rather than remembering anything.
+  useEffect(() => {
+    let cancelled = false;
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(async ([tab]) => {
+        if (cancelled || tab?.id === undefined) return;
+        setTabId(tab.id);
+        setTabUrl(tab.url ?? '');
+        const response = await send({ type: 'selection/get', tabId: tab.id });
+        if (cancelled) return;
+        if (response.ok) setSelection(response.data);
+        else fail(response.error);
+      })
+      .catch((error: unknown) =>
+        fail({
+          kind: 'no-tab-access',
+          message: 'Scrubframe could not read the current tab.',
+          detail: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [fail]);
 
   async function capture() {
     if (tabId === null || busy) return;
@@ -54,8 +62,40 @@ export default function App() {
       setShot(response.data);
       setStatus({ state: 'idle' });
     } else {
-      setStatus({ state: 'failed', error: response.error });
+      fail(response.error);
     }
+  }
+
+  async function runSpike() {
+    if (tabId === null || busy) return;
+    setSpike(null);
+    setStatus({ state: 'running', label: 'Attaching…' });
+    const response = await send({ type: 'spike/attach-check', tabId });
+    if (response.ok) {
+      setSpike(response.data);
+      setStatus({ state: 'idle' });
+    } else {
+      fail(response.error);
+    }
+  }
+
+  async function pick() {
+    if (tabId === null || busy) return;
+    setStatus({ state: 'running', label: 'Starting picker…' });
+    const response = await send({ type: 'picker/start', tabId });
+    if (response.ok) {
+      setSelection(response.data);
+      setStatus({ state: 'idle' });
+    } else {
+      fail(response.error);
+    }
+  }
+
+  async function clear() {
+    if (tabId === null || busy) return;
+    const response = await send({ type: 'selection/clear', tabId });
+    if (response.ok) setSelection(response.data);
+    else fail(response.error);
   }
 
   return (
@@ -63,26 +103,29 @@ export default function App() {
       <header className="flex items-baseline justify-between">
         <h1 className="text-base font-semibold tracking-tight text-white">Scrubframe</h1>
         <span className="rounded-full border border-neutral-800 px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral-500">
-          Phase 0
+          Phase 1
         </span>
       </header>
 
       <section className="flex flex-col gap-2">
-        <Button onClick={runSpike} disabled={busy || tabId === null}>
-          Run ADR-002 spike
-        </Button>
-        <p className="text-[11px] leading-snug text-neutral-500">
-          Attaches to this tab, then to a background tab you never invoked Scrubframe on. The
-          second one is the control: it is what separates <code>activeTab</code> from the{' '}
-          <code>debugger</code> permission. Keep another http(s) tab open.
-        </p>
-        {spike && <SpikeCard report={spike} />}
+        <SelectionCard
+          state={selection}
+          currentUrl={tabUrl}
+          onPick={pick}
+          onClear={clear}
+          disabled={busy || tabId === null}
+        />
       </section>
 
       <section className="flex flex-col gap-2 border-t border-neutral-900 pt-4">
-        <Button onClick={capture} disabled={busy || tabId === null} variant="primary">
+        <button
+          type="button"
+          onClick={() => void capture()}
+          disabled={busy || tabId === null}
+          className="rounded-md bg-white px-3 py-2 text-sm font-medium text-neutral-950 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-40"
+        >
           Capture frame
-        </Button>
+        </button>
         {shot && (
           <p className="text-[11px] leading-snug text-neutral-400">
             Saved <code className="text-neutral-200">{shot.filename}</code> — {shot.width}×
@@ -91,6 +134,23 @@ export default function App() {
         )}
       </section>
 
+      <details className="border-t border-neutral-900 pt-4">
+        <summary className="cursor-pointer text-[11px] text-neutral-500 hover:text-neutral-300">
+          Diagnostics
+        </summary>
+        <div className="mt-2 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => void runSpike()}
+            disabled={busy || tabId === null}
+            className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Run ADR-002 spike
+          </button>
+          {spike && <SpikeCard report={spike} />}
+        </div>
+      </details>
+
       {busy && <p className="text-[11px] text-neutral-500">{status.label}</p>}
       {status.state === 'failed' && <ErrorNote error={status.error} />}
 
@@ -98,7 +158,7 @@ export default function App() {
         No network requests · MIT ·{' '}
         <a
           className="underline decoration-neutral-700 underline-offset-2 hover:text-neutral-400"
-          href="https://github.com/"
+          href="https://github.com/juan19s/scrubframe"
           target="_blank"
           rel="noreferrer"
         >
@@ -106,33 +166,6 @@ export default function App() {
         </a>
       </footer>
     </div>
-  );
-}
-
-function Button({
-  children,
-  onClick,
-  disabled,
-  variant = 'default',
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  variant?: 'default' | 'primary';
-}) {
-  const tone =
-    variant === 'primary'
-      ? 'bg-white text-neutral-950 hover:bg-neutral-200'
-      : 'border border-neutral-800 bg-neutral-900 text-neutral-200 hover:border-neutral-700';
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-md px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
-    >
-      {children}
-    </button>
   );
 }
 
