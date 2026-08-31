@@ -3,6 +3,7 @@ import { frameName, runDirectory, slug } from '../shared/naming';
 import { createScrollAdapter } from '../adapters/scroll';
 import { decodeBase64, writeArtifact } from './artifact-writer';
 import { createContactSheets } from '../output/contact-sheet';
+import { writeAnimationMarkdown } from '../output/spec-writer';
 import { base64Bytes, readPngSize } from './capture-engine';
 import { CdpError, withSession, type CdpSession } from './cdp-session';
 import { clipFor, resolveElement } from './element-handle';
@@ -48,7 +49,8 @@ export async function captureScrollRun(
   }
 
   const tab = await chrome.tabs.get(tabId);
-  const project = await projectStateFor(tab.url ?? '');
+  const url = tab.url ?? '';
+  const project = await projectStateFor(url);
   // The label, not the full path: a directory named
   // `section-section-clip-div-container-div-a` is not something anyone can scan.
   const directory = runDirectory(project.name, selection.label, new Date());
@@ -154,8 +156,28 @@ export async function captureScrollRun(
         }
       }
 
+      // The other half of what ADR-004 defines as the deliverable. Written last,
+      // so it can report what actually happened rather than what was planned.
+      const markdown = writeAnimationMarkdown({
+        url,
+        project: project.name,
+        selector: selection.selector,
+        label: selection.label,
+        adapter: 'scroll',
+        range,
+        positions,
+        frameSize: { width: pngWidth, height: pngHeight },
+        frameNames: written.map((path) => path.split('/').pop() ?? path),
+        sheetNames: sheets,
+        framesPerSheet: builder?.plans[0]?.cells.length ?? count,
+        capturedAt: new Date(),
+        spec: await adapter.extractSpec(),
+      });
+      const specWrite = await writeArtifact(`${directory}/ANIMATION.md`, new Blob([markdown]));
+
       return {
         directory,
+        specFile: specWrite.path.split('/').pop() ?? 'ANIMATION.md',
         frames: written.length,
         requested: count,
         range,

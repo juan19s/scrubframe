@@ -30,13 +30,16 @@ export function RunCard({ run }: { run: CaptureRun }) {
         <Row label="dpr" value={`${run.devicePixelRatio}`} />
       </dl>
 
-      {run.sheets.length > 0 && (
-        <p className="mt-2 text-[11px] leading-snug text-emerald-200/80">
-          {run.sheets.length === 1
-            ? 'contact-sheet.png is the one to paste into a chat.'
-            : `${run.sheets.length} contact sheets — paste them in order.`}
-        </p>
-      )}
+      <p className="mt-2 text-[11px] leading-snug text-emerald-200/80">
+        Paste{' '}
+        {run.sheets.length === 0
+          ? 'the frames'
+          : run.sheets.length === 1
+            ? 'contact-sheet.png'
+            : `the ${run.sheets.length} contact sheets, in order,`}{' '}
+        and <code className="text-emerald-100">{run.specFile}</code> together — the image
+        shows what moved, the markdown says what is known about it.
+      </p>
       {run.sheetSkipped && (
         <p className="mt-2 text-[11px] leading-snug text-amber-300/80">
           Frames saved, contact sheet skipped: {run.sheetSkipped}
