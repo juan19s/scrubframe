@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm compile
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # SPEC §7.4 — the "zero network requests" claim, enforced rather than promised.
+      - name: Network audit
+        run: pnpm audit:network
+
+      - name: Checksum
+        run: |
+          pnpm zip
+          shasum -a 256 .output/*.zip | tee .output/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scrubframe-chrome-mv3
+          path: |
+            .output/*.zip
+            .output/SHA256SUMS

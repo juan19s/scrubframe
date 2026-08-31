@@ -1,0 +1,21 @@
+{
+  "$comment": "SPEC \u00a77.4 \u2014 URL strings that survive into the bundle but are never requested. Every entry needs a reason a reviewer can check in seconds.",
+  "urls": [
+    {
+      "host": "github.com",
+      "reason": "The 'View source' link in the popup footer. A user-initiated navigation, not a request Scrubframe makes."
+    },
+    {
+      "host": "react.dev",
+      "reason": "React embeds this in its invariant messages as a docs pointer. It is a string in a throw, not a request."
+    },
+    {
+      "host": "tailwindcss.com",
+      "reason": "License banner comment Tailwind emits at the top of its generated CSS. A comment, not a rule."
+    },
+    {
+      "host": "www.w3.org",
+      "reason": "XML/SVG namespace identifier. Never dereferenced by any browser."
+    }
+  ]
+}
