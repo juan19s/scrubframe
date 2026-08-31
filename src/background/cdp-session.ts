@@ -107,6 +107,42 @@ export function classify(raw: unknown): CdpError {
 }
 
 /**
+ * Turns Chrome's detach reason into a sentence.
+ *
+ * Every one of these is something the user did on purpose or watched happen,
+ * so naming it matters. Hitting Cancel on the yellow banner is the kill switch
+ * the README advertises; answering that with "the session was closed" is the
+ * least useful thing we could say about the one action we told them to take.
+ */
+export function detachError(reason: string | null, context = ''): CdpError {
+  const detail = [reason ?? 'no reason given', context].filter(Boolean).join(' · ');
+  switch (reason) {
+    case 'canceled_by_user':
+      return new CdpError(
+        'canceled-by-user',
+        'You stopped Scrubframe from Chrome\u2019s yellow banner.',
+        detail,
+      );
+    case 'target_closed':
+      return new CdpError('tab-closed', 'That tab was closed.', detail);
+    case 'replaced_with_devtools':
+      return new CdpError(
+        'devtools-open',
+        'DevTools opened on this tab and took the debugger. Close it and try again.',
+        detail,
+      );
+    case 'render_process_gone':
+      return new CdpError(
+        'page-crashed',
+        'The page crashed. Reload the tab and try again.',
+        detail,
+      );
+    default:
+      return new CdpError('tab-closed', 'The debugger session ended.', detail);
+  }
+}
+
+/**
  * Promisified wrapper over chrome.debugger, scoped to a single tab.
  *
  * Attach is deliberately short-lived: one capture, then detach. The yellow
@@ -116,8 +152,21 @@ export function classify(raw: unknown): CdpError {
 export class CdpSession {
   private readonly target: chrome.debugger.Debuggee;
   private attached = false;
-  private readonly onDetach = (source: chrome.debugger.Debuggee) => {
-    if (source.tabId === this.target.tabId) this.attached = false;
+  /**
+   * Why the session ended, straight from Chrome.
+   *
+   * Deliberately a bare `string` rather than chrome.debugger.DetachReason:
+   * @types/chrome declares only canceled_by_user and target_closed, while
+   * Chrome also emits replaced_with_devtools and render_process_gone at
+   * runtime. Typing this to the enum would drop the two most interesting
+   * cases into the default branch.
+   */
+  private detachReason: string | null = null;
+
+  private readonly onDetach = (source: chrome.debugger.Debuggee, reason: string) => {
+    if (source.tabId !== this.target.tabId) return;
+    this.attached = false;
+    this.detachReason = reason;
   };
 
   private constructor(tabId: number) {
@@ -145,7 +194,7 @@ export class CdpSession {
     params?: CdpCommands[M]['params'],
   ): Promise<CdpCommands[M]['result']> {
     if (!this.attached) {
-      throw new CdpError('tab-closed', 'The debugger session was closed.', `send(${method})`);
+      throw detachError(this.detachReason, method);
     }
     try {
       const result = await withTimeout(

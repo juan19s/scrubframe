@@ -8,6 +8,8 @@ export type FailureKind =
   | 'no-tab-access'
   | 'already-attached'
   | 'tab-closed'
+  | 'canceled-by-user'
+  | 'page-crashed'
   | 'timeout'
   | 'download-failed'
   | 'unknown';
