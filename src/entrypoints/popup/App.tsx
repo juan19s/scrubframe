@@ -39,10 +39,14 @@ export default function App() {
         if (cancelled || tab?.id === undefined) return;
         setTabId(tab.id);
         setTabUrl(tab.url ?? '');
-        const response = await send({ type: 'selection/get', tabId: tab.id });
+        const response = await send({ type: 'state/get', tabId: tab.id });
         if (cancelled) return;
-        if (response.ok) setSelection(response.data);
-        else fail(response.error);
+        if (response.ok) {
+          setSelection(response.data.selection);
+          setMeasurement(response.data.measurement);
+        } else {
+          fail(response.error);
+        }
       })
       .catch((error: unknown) =>
         fail({
@@ -144,6 +148,10 @@ export default function App() {
         >
           Measure
         </button>
+        <p className="text-[11px] leading-snug text-neutral-500">
+          Saving the file makes Chrome open its download bubble, which closes this popup.
+          Reopen it to read the numbers — they are kept.
+        </p>
         {measurement && <MeasureCard result={measurement} />}
       </section>
 

@@ -4,7 +4,7 @@ import { base64Bytes, readPngSize, saveFrame } from './capture-engine';
 import { CdpError, withSession, type CdpSession } from './cdp-session';
 import { calibrateScale } from './geometry';
 import { clipFor, measureElement, resolveElement, stageFor } from './element-handle';
-import { readSelection, selectionOf } from './selection';
+import { readSelection, selectionOf, writeMeasurement } from './selection';
 
 /** How far a PNG width may drift from the prediction before we stop believing it. */
 const SCALE_TOLERANCE_PX = 2;
@@ -36,7 +36,7 @@ export async function measureSelection(tabId: number): Promise<Measurement> {
   const tab = await chrome.tabs.get(tabId);
   const url = tab.url ?? '';
 
-  return withSession(tabId, async (session) => {
+  const result = await withSession(tabId, async (session) => {
     const { backendNodeId, nodeName } = await resolveElement(session, selection.marker);
     const { box, viewport } = await measureElement(session, backendNodeId);
 
@@ -78,6 +78,12 @@ export async function measureSelection(tabId: number): Promise<Measurement> {
       bytes: base64Bytes(data),
     };
   });
+
+  // Saved before returning, because the popup is very likely already gone: the
+  // download bubble that this run just triggered takes focus, and that closes
+  // the popup the result was headed for.
+  await writeMeasurement(tabId, result);
+  return result;
 }
 
 async function readDevicePixelRatio(session: CdpSession): Promise<number> {

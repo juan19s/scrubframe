@@ -1,5 +1,6 @@
 import type {
   Measurement,
+  PopupState,
   ScreenshotResult,
   ScrubframeFailure,
   SelectionState,
@@ -16,7 +17,7 @@ export type Request =
   | { type: 'capture/screenshot'; tabId: number }
   | { type: 'picker/start'; tabId: number }
   | { type: 'measure/element'; tabId: number }
-  | { type: 'selection/get'; tabId: number }
+  | { type: 'state/get'; tabId: number }
   | { type: 'selection/clear'; tabId: number }
   // picker -> background. These carry no tabId: the background reads it from
   // the message sender, which is the only trustworthy source for it.
@@ -28,7 +29,7 @@ export interface ResultMap {
   'capture/screenshot': ScreenshotResult;
   'picker/start': SelectionState;
   'measure/element': Measurement;
-  'selection/get': SelectionState;
+  'state/get': PopupState;
   'selection/clear': SelectionState;
   'picker/selected': SelectionState;
   'picker/cancelled': SelectionState;

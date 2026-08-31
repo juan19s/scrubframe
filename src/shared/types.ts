@@ -130,6 +130,12 @@ export interface Measurement {
   bytes: number;
 }
 
+/** Everything the popup rehydrates on mount. It keeps no state of its own. */
+export interface PopupState {
+  selection: SelectionState;
+  measurement: Measurement | null;
+}
+
 export interface ScreenshotResult {
   filename: string;
   /** Size of the decoded PNG, in bytes. */

@@ -1,4 +1,4 @@
-import type { SelectionState, StoredSelection } from '../shared/types';
+import type { Measurement, PopupState, SelectionState, StoredSelection } from '../shared/types';
 
 /**
  * Where a selection lives between the popup closing and reopening.
@@ -13,6 +13,7 @@ import type { SelectionState, StoredSelection } from '../shared/types';
  */
 
 const key = (tabId: number) => `sf:tab:${tabId}`;
+const measureKey = (tabId: number) => `sf:measure:${tabId}`;
 
 export async function readSelection(tabId: number): Promise<SelectionState> {
   const stored = await chrome.storage.session.get(key(tabId));
@@ -25,7 +26,37 @@ export async function writeSelection(tabId: number, state: SelectionState): Prom
 }
 
 export async function clearSelection(tabId: number): Promise<void> {
-  await chrome.storage.session.remove(key(tabId));
+  await chrome.storage.session.remove([key(tabId), measureKey(tabId)]);
+}
+
+/**
+ * The last measurement, stored for the same reason the selection is.
+ *
+ * chrome.downloads opens Chrome's download bubble when a file lands, the bubble
+ * takes focus, and an extension popup closes the moment it loses focus. So the
+ * popup is reliably dead by the time a measurement that saved a file comes
+ * back. Anything the popup must still be able to show has to outlive it.
+ */
+export async function readMeasurement(tabId: number): Promise<Measurement | null> {
+  const stored = await chrome.storage.session.get(measureKey(tabId));
+  return (stored[measureKey(tabId)] as Measurement | undefined) ?? null;
+}
+
+export async function writeMeasurement(tabId: number, result: Measurement): Promise<void> {
+  await chrome.storage.session.set({ [measureKey(tabId)]: result });
+}
+
+export async function clearMeasurement(tabId: number): Promise<void> {
+  await chrome.storage.session.remove(measureKey(tabId));
+}
+
+/** Everything the popup needs on mount, in one round trip. */
+export async function readPopupState(tabId: number): Promise<PopupState> {
+  const [selection, measurement] = await Promise.all([
+    readSelection(tabId),
+    readMeasurement(tabId),
+  ]);
+  return { selection, measurement };
 }
 
 export function selectionOf(state: SelectionState): StoredSelection | null {
