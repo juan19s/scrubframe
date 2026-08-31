@@ -26,8 +26,61 @@ export interface CdpCommands {
       userGesture?: boolean;
     };
     result: {
-      result: { type: string; value?: unknown };
+      result: { type: string; value?: unknown; objectId?: string };
       exceptionDetails?: { text: string };
+    };
+  };
+  'Runtime.releaseObject': {
+    params: { objectId: string };
+    result: Record<string, never>;
+  };
+  'DOM.enable': { params?: Record<string, never>; result: Record<string, never> };
+  /**
+   * Turns a JS handle into a node handle. This is the bridge between the page's
+   * world and the protocol's.
+   *
+   * Deliberately NOT DOM.requestNode, which routes through PushNodePathToFrontend
+   * and therefore forces a DOM.getDocument first — and DOM.getDocument calls
+   * discardFrontendBindings(), invalidating every nodeId anyone is holding.
+   * describeNode has none of that.
+   */
+  'DOM.describeNode': {
+    params: { objectId?: string; nodeId?: number; backendNodeId?: number; depth?: number };
+    result: { node: { backendNodeId: number; nodeName: string; nodeId?: number } };
+  };
+  'DOM.getBoxModel': {
+    params: { objectId?: string; nodeId?: number; backendNodeId?: number };
+    /** Quads are 8 numbers: x1,y1,x2,y2,x3,y3,x4,y4 — see geometry.ts. */
+    result: {
+      model: {
+        content: number[];
+        padding: number[];
+        border: number[];
+        margin: number[];
+        width: number;
+        height: number;
+      };
+    };
+  };
+  'Page.getLayoutMetrics': {
+    params?: Record<string, never>;
+    /**
+     * cssLayoutViewport is deliberately not declared. Its pageX/pageY are
+     * `integer` in the protocol and truncate, which shows up as sub-pixel
+     * shimmer across a contact sheet whose whole point is that the frames line
+     * up. Leaving it out of the type makes the wrong field unreachable rather
+     * than merely discouraged.
+     */
+    result: {
+      cssVisualViewport: {
+        pageX: number;
+        pageY: number;
+        clientWidth: number;
+        clientHeight: number;
+        scale?: number;
+        zoom?: number;
+      };
+      cssContentSize: { x: number; y: number; width: number; height: number };
     };
   };
 }

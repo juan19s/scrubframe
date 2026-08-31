@@ -20,18 +20,26 @@ export async function captureSingleFrame(tabId: number): Promise<ScreenshotResul
   const directory = captureDirectory(url, null, new Date());
   const filename = `${directory}/${frameName(1, 1)}`;
 
+  await saveFrame(data, filename);
+
+  const { width, height } = readPngSize(data);
+  return { filename, bytes: base64Bytes(data), width, height, downloadState: 'complete' };
+}
+
+/**
+ * Writes one base64 PNG to Downloads and waits for Chrome to finish.
+ *
+ * download() resolves as soon as the download is *created*. A data: URL over
+ * Chrome's size ceiling gets created and then interrupted, so returning here
+ * would mean reporting "saved" for a file that is not on disk.
+ */
+export async function saveFrame(data: string, filename: string): Promise<void> {
   const downloadId = await chrome.downloads.download({
     url: `data:image/png;base64,${data}`,
     filename,
     saveAs: false,
   });
-  // download() resolves as soon as the download is *created*. A data: URL over
-  // Chrome's size ceiling gets created and then interrupted, so reporting
-  // success here would mean printing "Saved" for a file that is not on disk.
   await settled(downloadId, filename);
-
-  const { width, height } = readPngSize(data);
-  return { filename, bytes: base64Bytes(data), width, height, downloadState: 'complete' };
 }
 
 /** Returns base64 PNG data. */

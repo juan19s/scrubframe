@@ -6,6 +6,8 @@ export type FailureKind =
   | 'devtools-open'
   | 'restricted-url'
   | 'no-tab-access'
+  | 'element-gone'
+  | 'element-invisible'
   | 'already-attached'
   | 'tab-closed'
   | 'canceled-by-user'
@@ -93,6 +95,40 @@ export type SelectionState =
   | { status: 'none' }
   | { status: 'picking' }
   | { status: 'selected'; selection: StoredSelection };
+
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * One measurement of the picked element, plus the answer to the question the
+ * documentation would not settle: does a clipped capture inherit a Retina
+ * surface's device scale factor?
+ */
+export interface Measurement {
+  selector: string;
+  nodeName: string;
+  backendNodeId: number;
+  /** Viewport space: what DOM.getBoxModel reported. */
+  box: Box;
+  /** Viewport space: the element's box padded and clamped to what is on screen. */
+  stage: Box;
+  /** Document space: what we actually sent to Chrome. */
+  clip: Box & { scale: number };
+  scrollY: number;
+  devicePixelRatio: number;
+  pngWidth: number;
+  pngHeight: number;
+  /** True when the PNG came out at devicePixelRatio despite scale: 1. */
+  inheritsDeviceScale: boolean;
+  /** The scale to pass for a 1:1 CSS-pixel frame. */
+  scaleForOneToOne: number;
+  filename: string;
+  bytes: number;
+}
 
 export interface ScreenshotResult {
   filename: string;

@@ -2,6 +2,7 @@ import { captureSingleFrame } from '../background/capture-engine';
 import { CdpError } from '../background/cdp-session';
 import { cancelPicking, recordSelection, startPicking } from '../background/picker-control';
 import { clearSelection, readSelection, registerTabCleanup } from '../background/selection';
+import { measureSelection } from '../background/measure';
 import { runAttachSpike } from '../background/spike';
 import type { Request, ResultMap } from '../shared/messaging';
 import type { ScrubframeFailure } from '../shared/types';
@@ -29,6 +30,8 @@ async function handle(
       return captureSingleFrame(message.tabId);
     case 'picker/start':
       return startPicking(message.tabId);
+    case 'measure/element':
+      return measureSelection(message.tabId);
     case 'selection/get':
       return readSelection(message.tabId);
     case 'selection/clear':

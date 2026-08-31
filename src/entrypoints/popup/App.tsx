@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { send } from '../../shared/messaging';
 import type {
+  Measurement,
   ScreenshotResult,
   ScrubframeFailure,
   SelectionState,
   SpikeReport,
 } from '../../shared/types';
+import { MeasureCard } from './MeasureCard';
 import { SelectionCard } from './SelectionCard';
 import { SpikeCard } from './SpikeCard';
 
@@ -21,6 +23,7 @@ export default function App() {
   const [selection, setSelection] = useState<SelectionState>({ status: 'none' });
   const [spike, setSpike] = useState<SpikeReport | null>(null);
   const [shot, setShot] = useState<ScreenshotResult | null>(null);
+  const [measurement, setMeasurement] = useState<Measurement | null>(null);
 
   const busy = status.state === 'running';
 
@@ -53,6 +56,19 @@ export default function App() {
     };
   }, [fail]);
 
+  async function measure() {
+    if (tabId === null || busy) return;
+    setMeasurement(null);
+    setStatus({ state: 'running', label: 'Measuring…' });
+    const response = await send({ type: 'measure/element', tabId });
+    if (response.ok) {
+      setMeasurement(response.data);
+      setStatus({ state: 'idle' });
+    } else {
+      fail(response.error);
+    }
+  }
+
   async function capture() {
     if (tabId === null || busy) return;
     setShot(null);
@@ -82,6 +98,7 @@ export default function App() {
   async function pick() {
     if (tabId === null || busy) return;
     setStatus({ state: 'running', label: 'Starting picker…' });
+    setMeasurement(null);
     const response = await send({ type: 'picker/start', tabId });
     if (response.ok) {
       setSelection(response.data);
@@ -93,6 +110,7 @@ export default function App() {
 
   async function clear() {
     if (tabId === null || busy) return;
+    setMeasurement(null);
     const response = await send({ type: 'selection/clear', tabId });
     if (response.ok) setSelection(response.data);
     else fail(response.error);
@@ -115,6 +133,18 @@ export default function App() {
           onClear={clear}
           disabled={busy || tabId === null}
         />
+      </section>
+
+      <section className="flex flex-col gap-2 border-t border-neutral-900 pt-4">
+        <button
+          type="button"
+          onClick={() => void measure()}
+          disabled={busy || tabId === null || selection.status !== 'selected'}
+          className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Measure
+        </button>
+        {measurement && <MeasureCard result={measurement} />}
       </section>
 
       <section className="flex flex-col gap-2 border-t border-neutral-900 pt-4">

@@ -1,4 +1,5 @@
 import type {
+  Measurement,
   ScreenshotResult,
   ScrubframeFailure,
   SelectionState,
@@ -14,6 +15,7 @@ export type Request =
   | { type: 'spike/attach-check'; tabId: number }
   | { type: 'capture/screenshot'; tabId: number }
   | { type: 'picker/start'; tabId: number }
+  | { type: 'measure/element'; tabId: number }
   | { type: 'selection/get'; tabId: number }
   | { type: 'selection/clear'; tabId: number }
   // picker -> background. These carry no tabId: the background reads it from
@@ -25,6 +27,7 @@ export interface ResultMap {
   'spike/attach-check': SpikeReport;
   'capture/screenshot': ScreenshotResult;
   'picker/start': SelectionState;
+  'measure/element': Measurement;
   'selection/get': SelectionState;
   'selection/clear': SelectionState;
   'picker/selected': SelectionState;
