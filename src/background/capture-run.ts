@@ -1,6 +1,7 @@
-import type { CaptureRun } from '../shared/types';
+import type { AdapterId, CaptureRun } from '../shared/types';
 import { frameName, runDirectory, slug } from '../shared/naming';
 import { createScrollAdapter } from '../adapters/scroll';
+import type { CaptureAdapter } from '../adapters/types';
 import { decodeBase64, writeArtifact } from './artifact-writer';
 import { createContactSheets } from '../output/contact-sheet';
 import { writeAnimationMarkdown } from '../output/spec-writer';
@@ -37,10 +38,16 @@ export const MAX_FRAMES = 60;
  * the element centred, which sounds better and is wrong: a camera locked to the
  * subject subtracts exactly the motion being captured.
  */
+/** Which adapters the capture loop can drive today. */
+const ADAPTERS: Record<string, (session: CdpSession, backendNodeId: number) => CaptureAdapter> = {
+  scroll: createScrollAdapter,
+};
+
 export async function captureScrollRun(
   tabId: number,
   frames: number,
   stepPx?: number,
+  adapterId: AdapterId = 'scroll',
 ): Promise<CaptureRun> {
   const count = Math.round(Math.min(MAX_FRAMES, Math.max(MIN_FRAMES, frames)));
   const selection = selectionOf(await readSelection(tabId));
@@ -57,7 +64,15 @@ export async function captureScrollRun(
 
   return withSession(tabId, async (session) => {
     const { backendNodeId } = await resolveElement(session, selection.marker);
-    const adapter = createScrollAdapter(session, backendNodeId);
+    const build = ADAPTERS[adapterId];
+    if (!build) {
+      throw new CdpError(
+        'unknown',
+        `Scrubframe has no "${adapterId}" adapter yet.`,
+        `unknown adapter ${adapterId}`,
+      );
+    }
+    const adapter: CaptureAdapter = build(session, backendNodeId);
 
     await adapter.pause();
     try {
@@ -111,7 +126,7 @@ export async function captureScrollRun(
           builder = createContactSheets({
             frame: { width: png.width, height: png.height },
             totalFrames: count,
-            legend: `${project.name} · ${selection.label} · scroll · ${count} frames`,
+            legend: `${project.name} · ${selection.label} · ${adapter.id} · ${count} frames`,
             unit: range.unit,
           });
           // Verified, not corrected. Changing scale here is what produced the
@@ -163,7 +178,7 @@ export async function captureScrollRun(
         project: project.name,
         selector: selection.selector,
         label: selection.label,
-        adapter: 'scroll',
+        adapter: adapter.id,
         range,
         positions,
         frameSize: { width: pngWidth, height: pngHeight },

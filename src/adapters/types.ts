@@ -88,3 +88,27 @@ export interface TimelineAdapter {
   /** Real timing metadata, or null when the technology cannot expose it. */
   extractSpec(): Promise<AnimationSpec | null>;
 }
+
+/**
+ * What the capture loop actually consumes.
+ *
+ * Narrower than TimelineAdapter and shaped by the loop's contract rather than
+ * by the SPEC's ideal: the session is already open, the element is already
+ * resolved, and `stage` exists because the crop has to be decided once and
+ * frozen — see capture-run.ts. TimelineAdapter stays as the interface a
+ * contributor implements; this is the seam the engine talks to.
+ */
+export interface CaptureAdapter {
+  readonly id: AdapterId;
+  readonly label: string;
+  /** Freezes, and takes the restore point. Called before getRange, which moves things. */
+  pause(): Promise<unknown>;
+  getRange(options: { frames: number; stepPx?: number }): Promise<TimelineRange>;
+  /** The frozen crop, in viewport space. Computed once, after getRange. */
+  stage(range: TimelineRange): Promise<{ x: number; y: number; width: number; height: number }>;
+  /** Moves to an absolute position; returns where it actually landed. */
+  seek(position: number): Promise<number>;
+  /** Restores the page. Always called, including when the run throws. */
+  resume(): Promise<void>;
+  extractSpec(): Promise<AnimationSpec | null>;
+}
