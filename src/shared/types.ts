@@ -9,6 +9,8 @@ export type FailureKind =
   | 'element-gone'
   | 'element-invisible'
   | 'scroll-hijacked'
+  | 'tab-hidden'
+  | 'no-animations'
   | 'already-attached'
   | 'tab-closed'
   | 'canceled-by-user'

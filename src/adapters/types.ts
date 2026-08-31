@@ -18,6 +18,14 @@ export interface SelectedElement {
   label: string;
 }
 
+/** One stop in a property's keyframe list. */
+export interface PropertyStop {
+  offset: number;
+  value: string;
+  /** The easing of the segment STARTING here. Null on the last stop, which starts none. */
+  easing: string | null;
+}
+
 /** One property an animation actually changes, as reported by the technology. */
 export interface AnimatedProperty {
   property: string;
@@ -25,7 +33,19 @@ export interface AnimatedProperty {
   to: string;
   durationMs: number;
   delayMs: number;
+  /**
+   * The curve a developer would copy — which is not simply getTiming().easing.
+   * See easingFor() in waapi-extract.ts for why picking one level is wrong.
+   */
   easing: string;
+  /**
+   * True when the effect-level and per-keyframe easings BOTH bite. They compose
+   * by function composition and cannot be flattened into one cubic-bezier, so
+   * `easing` above is a description rather than something to paste.
+   */
+  composedEasing?: boolean;
+  /** Present when there are more than two stops, which from/to would hide. */
+  stops?: PropertyStop[];
 }
 
 /**

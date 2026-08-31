@@ -30,6 +30,23 @@ export interface CdpCommands {
       exceptionDetails?: { text: string };
     };
   };
+  /** Turns a node handle back into a JS reference, so page code can use `this`. */
+  'DOM.resolveNode': {
+    params: { backendNodeId?: number; nodeId?: number };
+    result: { object: { objectId: string } };
+  };
+  'Runtime.callFunctionOn': {
+    params: {
+      objectId: string;
+      functionDeclaration: string;
+      returnByValue?: boolean;
+      awaitPromise?: boolean;
+    };
+    result: {
+      result: { type: string; value?: unknown };
+      exceptionDetails?: { text: string };
+    };
+  };
   'Runtime.releaseObject': {
     params: { objectId: string };
     result: Record<string, never>;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { send } from '../../shared/messaging';
-import type { CaptureRun, ScreenshotResult } from '../../shared/types';
+import type { AdapterId, CaptureRun, ScreenshotResult } from '../../shared/types';
 import { armFolderPermission, chooseFolder, forgetFolder } from './folder';
 import { MeasureCard } from './MeasureCard';
 import { ProjectCard } from './ProjectCard';
@@ -17,6 +17,7 @@ export default function App() {
   const [shot, setShot] = useState<ScreenshotResult | null>(null);
   const [frames, setFrames] = useState(12);
   const [step, setStep] = useState('');
+  const [adapter, setAdapter] = useState<AdapterId>('scroll');
   const [run, setRun] = useState<CaptureRun | null>(null);
 
   const tabId = panel.tab.id;
@@ -112,7 +113,8 @@ export default function App() {
         type: 'capture/run',
         tabId: id,
         frames,
-        ...(step.trim() !== '' && stepPx > 0 ? { stepPx } : {}),
+        adapter,
+        ...(adapter === 'scroll' && step.trim() !== '' && stepPx > 0 ? { stepPx } : {}),
       });
       if (response.ok) setRun(response.data);
       else panel.setError(response.error);
@@ -172,6 +174,30 @@ export default function App() {
       </section>
 
       <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
+        <div className="flex gap-1 rounded-md border border-neutral-800 bg-neutral-950 p-1">
+          {(
+            [
+              ['scroll', 'Scroll', 'Steps the page. Works on reveals and ScrollTrigger.'],
+              ['waapi', 'Time', 'Freezes the timeline and reads the real easing.'],
+            ] as const
+          ).map(([id, label, hint]) => (
+            <button
+              key={id}
+              type="button"
+              title={hint}
+              onClick={() => setAdapter(id)}
+              disabled={busy !== null}
+              className={`flex-1 rounded px-2 py-1 text-[11px] font-medium transition disabled:opacity-40 ${
+                adapter === id
+                  ? 'bg-neutral-800 text-neutral-100'
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center justify-between">
           <label htmlFor="scrubframe-frames" className="text-[11px] text-neutral-400">
             Frames
@@ -193,9 +219,9 @@ export default function App() {
           disabled={!ready || panel.selection.status !== 'selected'}
           className="rounded-md bg-white px-3 py-2 text-sm font-medium text-neutral-950 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Capture scroll
+          {adapter === 'scroll' ? 'Capture scroll' : 'Capture timeline'}
         </button>
-        <div className="flex items-center justify-between">
+        <div className={`flex items-center justify-between ${adapter === 'scroll' ? '' : 'hidden'}`}>
           <label htmlFor="scrubframe-step" className="text-[11px] text-neutral-400">
             Step
           </label>
@@ -214,11 +240,13 @@ export default function App() {
           </div>
         </div>
         <p className="text-[11px] leading-snug text-neutral-500">
-          {step.trim() === ''
-            ? 'Auto: steps through the whole span where your element crosses the viewport.'
-            : `Starts where the page is now and moves ${step}px per frame — ${
-                Number(step) * Math.max(1, frames - 1)
-              }px in total.`}
+          {adapter === 'waapi'
+            ? 'Pauses the document timeline and steps it in milliseconds. Reports the real cubic-bezier from the page.'
+            : step.trim() === ''
+              ? 'Auto: steps through the whole span where your element crosses the viewport.'
+              : `Starts where the page is now and moves ${step}px per frame — ${
+                  Number(step) * Math.max(1, frames - 1)
+                }px in total.`}
         </p>
         {run && <RunCard run={run} />}
       </section>

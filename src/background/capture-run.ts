@@ -1,6 +1,7 @@
 import type { AdapterId, CaptureRun } from '../shared/types';
 import { frameName, runDirectory, slug } from '../shared/naming';
 import { createScrollAdapter } from '../adapters/scroll';
+import { createWaapiAdapter } from '../adapters/waapi';
 import type { CaptureAdapter } from '../adapters/types';
 import { decodeBase64, writeArtifact } from './artifact-writer';
 import { createContactSheets } from '../output/contact-sheet';
@@ -41,6 +42,7 @@ export const MAX_FRAMES = 60;
 /** Which adapters the capture loop can drive today. */
 const ADAPTERS: Record<string, (session: CdpSession, backendNodeId: number) => CaptureAdapter> = {
   scroll: createScrollAdapter,
+  waapi: createWaapiAdapter,
 };
 
 export async function captureScrollRun(

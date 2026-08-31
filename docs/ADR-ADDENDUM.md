@@ -398,3 +398,129 @@ Peor: una cadena *inválida* se ignora y conserva la fuente anterior, pero una q
 Y siempre terminar la lista de familias en una genérica: una familia que no
 resuelve nunca queda invisible, pero el último recurso de Blink es una **serif**,
 así que `20px "SF Mono"` sale en algo parecido a Times.
+
+
+---
+
+## ADR-008 — La regla del easing, medida en vez de asumida
+
+Esta es la corrección más importante de todo el proyecto, porque toca su
+argumento de venta: *"el `cubic-bezier` exacto, leído de la página, no
+adivinado"*.
+
+**Hay dos easings y ninguno es la respuesta por sí solo.** Medido en Chrome 148:
+
+| Origen | `getTiming().easing` | easing por keyframe | cuál sirve |
+|---|---|---|---|
+| CSS `@keyframes` | **siempre `linear`** | el `animation-timing-function` real | el del keyframe |
+| CSS transition | el `transition-timing-function` real | **siempre `linear`** | el del timing |
+| `element.animate()` | lo que diga `options.easing` | lo que diga el keyframe | los dos |
+
+Cuatro de cuatro animaciones CSS medidas devolvieron `getTiming().easing ===
+"linear"`, con la curva real empujada a **cada** keyframe — incluido el último,
+donde no gobierna nada.
+
+Consecuencia directa:
+
+> Leer solo `getTiming().easing` reporta `linear` para **toda animación CSS de
+> la web**. Leer solo el easing del keyframe reporta `linear` para **toda
+> transición**. Las dos reglas simples están mal, en direcciones opuestas, y las
+> dos están mal **con confianza**.
+
+**Y cuando los dos niveles son no-lineales, se componen.** Con
+`B = cubic-bezier(0.4, 0, 0.2, 1)` y opacidad 0→1 en 1000ms, leído con
+`getComputedStyle` en el punto medio:
+
+| configuración | opacidad en t=500 |
+|---|---|
+| efecto `B`, keyframe lineal | 0.775561 |
+| efecto lineal, keyframe `B` | 0.775561 |
+| **los dos `B`** | **0.968095** |
+
+`B(0.5) = 0.7756`. `B(0.7756) = 0.968`. Es composición de funciones — primero el
+del efecto, después el del segmento — y **no se puede aplanar a un solo
+cubic-bezier**. Nombrar cualquiera de los dos ahí sería inventar una curva que
+alguien va a pegar en producción.
+
+**Decisión.** `easingFor()` lee los dos y deriva la celda. Cuando ambos muerden,
+describe la composición y manda a los keyframes crudos en vez de dar un número
+falso. Además, el easing de un keyframe gobierna **el segmento que empieza en
+él**, sobre progreso local a ese segmento — así que el último se descarta.
+
+## Corrección — `extractSpec()` corría en el momento equivocado
+
+`capture-run.ts` llama `extractSpec()` **después** del loop, con la página
+pausada y todo parqueado en `range.to`.
+
+Medido: una animación con `fill: none` puesta en su propio `endTime` **desaparece
+de `getAnimations()`** — ya no está "current" ni "in effect". Así que para el
+caso más común que existe, un *reveal* de una sola ejecución, la corrida
+produciría 20 frames correctos y un `ANIMATION.md` con timing vacío. Y `null`
+desde el adaptador `waapi` imprime *"este adaptador no puede leer el timing"*,
+que es **falso**.
+
+Ahora el probe corre dentro de `pause()`, antes de que nada se mueva, y
+`extractSpec()` devuelve la caché. De paso satisface gratis la advertencia de la
+§4 sobre aplicar el trigger antes del probe.
+
+## Corrección a la §4 — `getAnimations()` no es "corriendo o pendientes"
+
+El SPEC dice que devuelve las que están corriendo o pendientes. La regla real es
+**"current or in effect"**, que es distinta e importa: una animación terminada
+con `fill: forwards` sigue apareciendo, y una terminada con `fill: none` no.
+
+Y dos cosas más que se midieron:
+
+- **`{ subtree: true }` no es opcional.** Sin él pierdes los `::before` y
+  `::after` del propio elemento, porque el target del efecto *es* el
+  pseudo-elemento. Medido: `card.getAnimations()` → `[]`;
+  `card.getAnimations({subtree:true})` → dos animaciones.
+- **No cruza límites de shadow DOM, en ninguna dirección.** Hay que recorrer los
+  shadow roots abiertos a mano — igual que ya hace la búsqueda del marcador del
+  picker, así que los dos extremos coinciden.
+
+## Decisión — atribuir en fino, congelar en grueso
+
+Se **reporta** solo lo que anima al elemento elegido. Se **pausa** todo lo que
+tenga línea de tiempo en el documento.
+
+Si dejas corriendo el spinner del header mientras la captura tarda cuatro
+segundos, se embarra en el contact sheet por razones que la línea de tiempo no
+puede explicar.
+
+## Por qué NO el dominio `Animation` de CDP
+
+Ese dominio no tiene comando para listar animaciones — los ids solo llegan por
+eventos, y este repo no tiene ningún listener de `chrome.debugger.onEvent`. Pero
+la razón de fondo es otra:
+
+`Animation.seekAnimations` vierte un valor en **milisegundos** a toda animación
+que le des, incluidas las guiadas por scroll, cuya línea de tiempo es un
+**porcentaje**. Silenciosamente. El setter desde la página, en cambio, las
+rechaza con `NotSupportedError`.
+
+Este proyecto ya se niega a capturar un scroll secuestrado porque *"los frames
+se verían bien y estarían mal"*. El camino por CDP es una máquina de producir
+exactamente esa clase de frame.
+
+## Trampa nueva — `pause()` no pausa
+
+Medido: `Animation.pause()` pone `playState` en `"paused"` de inmediato, pero
+solo **encola** la tarea de pausa. `startTime` sigue resuelto y `currentTime`
+sigue avanzando hasta el siguiente frame. **En una pestaña de fondo no hay
+siguiente frame y la pausa nunca se concreta.**
+
+La pausa idempotente que promete la interfaz es `pause(); currentTime =
+currentTime;` — escribir el tiempo toma el *hold time* y desprende `startTime`,
+en la misma tarea.
+
+## Bug arreglado en código ya publicado — rAF en pestaña oculta
+
+En una pestaña de fondo `requestAnimationFrame` **nunca dispara** y
+`document.timeline.currentTime` se queda en 0. El doble rAF de `scroll.ts` se
+colgaba hasta el timeout de 15s y reportaba *"la página dejó de responder"* —
+falso y no accionable.
+
+Ahora el doble rAF corre contra un límite de 400ms y se detecta `document.hidden`
+explícitamente, con su propia frase: la pestaña tiene que estar visible, porque
+una pestaña de fondo no pinta y todos los frames saldrían idénticos.

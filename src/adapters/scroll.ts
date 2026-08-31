@@ -4,6 +4,7 @@ import type { Rect, VisualViewport } from '../background/geometry';
 import { clampToViewport, padRect, quadToRect, snapRect } from '../background/geometry';
 import { STAGE_PADDING } from '../background/element-handle';
 import type { AnimationSpec, TimelineRange } from './types';
+import { AWAIT_PAINT } from './page-scripts';
 
 /** How far the real scroll position may miss the target before we stop trusting it. */
 const SCROLL_TOLERANCE_PX = 2;
@@ -126,17 +127,25 @@ export function createScrollAdapter(
 
     /** Returns where the page actually landed, which is not always where we asked. */
     async seek(position) {
-      const landed = await evaluate<{ y: number; settled: boolean }>(
+      const landed = await evaluate<{ y: number; painted: boolean; hidden: boolean }>(
         session,
         `(async () => {
           // 'instant' overrides CSS scroll-behavior: smooth. The spec only
           // consults the computed property for 'auto', so this is not a hint.
           window.scrollTo({ top: ${position}, left: 0, behavior: 'instant' });
-          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          return { y: window.scrollY, settled: true };
+          const paint = await ${AWAIT_PAINT};
+          return { y: window.scrollY, ...paint };
         })()`,
         true,
       );
+
+      if (landed.hidden) {
+        throw new CdpError(
+          'tab-hidden',
+          'This tab has to stay visible while capturing — a background tab never paints, so the frames would all be identical.',
+          'document.hidden was true during a seek',
+        );
+      }
 
       if (Math.abs(landed.y - position) > SCROLL_TOLERANCE_PX) {
         throw new CdpError(

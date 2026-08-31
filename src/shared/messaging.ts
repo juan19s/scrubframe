@@ -1,4 +1,5 @@
 import type {
+  AdapterId,
   CaptureRun,
   Measurement,
   PopupState,
@@ -17,7 +18,7 @@ export type Request =
   // popup -> background
   | { type: 'spike/attach-check'; tabId: number }
   | { type: 'capture/screenshot'; tabId: number }
-  | { type: 'capture/run'; tabId: number; frames: number; stepPx?: number }
+  | { type: 'capture/run'; tabId: number; frames: number; stepPx?: number; adapter?: AdapterId }
   | { type: 'picker/start'; tabId: number }
   | { type: 'measure/element'; tabId: number }
   | { type: 'project/get'; tabId: number }
