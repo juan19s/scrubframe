@@ -48,7 +48,7 @@ async function handle(
     case 'capture/screenshot':
       return captureSingleFrame(message.tabId);
     case 'capture/run':
-      return captureScrollRun(message.tabId, message.frames);
+      return captureScrollRun(message.tabId, message.frames, message.stepPx);
     case 'picker/start':
       return startPicking(message.tabId);
     case 'measure/element':

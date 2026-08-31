@@ -11,11 +11,26 @@ const SCROLL_TOLERANCE_PX = 2;
 /** Extra scroll on each end, so the first and last frames show before and after. */
 const RANGE_PADDING_PX = 80;
 
+/** How the scroll range is chosen. */
+export interface RangeOptions {
+  /**
+   * Fixed pixels per frame, starting from wherever the page is right now.
+   *
+   * Without it the range is derived: the whole span where the element crosses
+   * the viewport. That is the right default for "show me this reveal", and the
+   * wrong one when the element's path is long and you want a close look at part
+   * of it — twenty frames then land twenty screenfuls apart.
+   */
+  stepPx?: number;
+  frames: number;
+}
+
 export interface ScrollAdapter {
   readonly id: 'scroll';
   readonly label: string;
-  pause(): Promise<void>;
-  getRange(): Promise<TimelineRange>;
+  /** Returns the position it will restore to. */
+  pause(): Promise<{ x: number; y: number }>;
+  getRange(options: RangeOptions): Promise<TimelineRange>;
   /** The frozen crop, in viewport space. Computed once, after getRange. */
   stage(range: TimelineRange): Promise<Rect>;
   seek(position: number): Promise<number>;
@@ -53,16 +68,25 @@ export function createScrollAdapter(
         '({ x: window.scrollX, y: window.scrollY })',
       );
       restoreTo = position;
+      return position;
     },
 
-    async getRange() {
+    async getRange(options) {
       const { box, viewport, content } = await measure(session, backendNodeId);
       const documentTop = box.y + viewport.pageY;
       const maxScroll = Math.max(0, content.height - viewport.clientHeight);
 
-      // Start with the element just below the fold and end with it just above,
-      // instead of sweeping the whole document. On a 10,000px page the document
-      // range would spend eleven of twelve frames on nothing.
+      // A fixed step starts where the user left the page, because that is how
+      // they chose it: they scrolled to the part they care about.
+      if (options.stepPx && options.stepPx > 0) {
+        const from = clamp(restoreTo?.y ?? 0, 0, maxScroll);
+        const span = options.stepPx * Math.max(1, options.frames - 1);
+        return { from, to: clamp(from + span, 0, maxScroll), unit: 'px' };
+      }
+
+      // Otherwise: the element just below the fold to just above it, instead of
+      // sweeping the whole document. On a 10,000px page the document range
+      // would spend eleven of twelve frames on nothing.
       const from = clamp(documentTop - viewport.clientHeight - RANGE_PADDING_PX, 0, maxScroll);
       const to = clamp(documentTop + box.height + RANGE_PADDING_PX, 0, maxScroll);
 

@@ -17,7 +17,7 @@ export type Request =
   // popup -> background
   | { type: 'spike/attach-check'; tabId: number }
   | { type: 'capture/screenshot'; tabId: number }
-  | { type: 'capture/run'; tabId: number; frames: number }
+  | { type: 'capture/run'; tabId: number; frames: number; stepPx?: number }
   | { type: 'picker/start'; tabId: number }
   | { type: 'measure/element'; tabId: number }
   | { type: 'project/get'; tabId: number }

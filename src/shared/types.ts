@@ -172,6 +172,9 @@ export interface CaptureRun {
   /** Where the page actually landed for each frame, not what we asked for. */
   positions: number[];
   target: 'folder' | 'downloads';
+  devicePixelRatio: number;
+  /** Set when the first frame came back a different size than predicted. */
+  sizeDrift?: string;
 }
 
 /** Everything the popup rehydrates on mount. It keeps no state of its own. */

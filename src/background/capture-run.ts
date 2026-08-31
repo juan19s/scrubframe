@@ -3,11 +3,19 @@ import { frameName, runDirectory, slug } from '../shared/naming';
 import { createScrollAdapter } from '../adapters/scroll';
 import { writeArtifact } from './artifact-writer';
 import { base64Bytes, readPngSize } from './capture-engine';
-import { CdpError, withSession } from './cdp-session';
+import { CdpError, withSession, type CdpSession } from './cdp-session';
 import { clipFor, resolveElement } from './element-handle';
-import { calibrateScale } from './geometry';
 import { projectStateFor } from './project';
 import { readSelection, selectionOf } from './selection';
+
+async function readDevicePixelRatio(session: CdpSession): Promise<number> {
+  const evaluated = await session.send('Runtime.evaluate', {
+    expression: 'window.devicePixelRatio',
+    returnByValue: true,
+  });
+  const value = evaluated.result.value;
+  return typeof value === 'number' && value > 0 ? value : 1;
+}
 
 export const MIN_FRAMES = 2;
 export const MAX_FRAMES = 60;
@@ -27,7 +35,11 @@ export const MAX_FRAMES = 60;
  * the element centred, which sounds better and is wrong: a camera locked to the
  * subject subtracts exactly the motion being captured.
  */
-export async function captureScrollRun(tabId: number, frames: number): Promise<CaptureRun> {
+export async function captureScrollRun(
+  tabId: number,
+  frames: number,
+  stepPx?: number,
+): Promise<CaptureRun> {
   const count = Math.round(Math.min(MAX_FRAMES, Math.max(MIN_FRAMES, frames)));
   const selection = selectionOf(await readSelection(tabId));
   if (!selection) {
@@ -36,7 +48,9 @@ export async function captureScrollRun(tabId: number, frames: number): Promise<C
 
   const tab = await chrome.tabs.get(tabId);
   const project = await projectStateFor(tab.url ?? '');
-  const directory = runDirectory(project.name, selection.selector, new Date());
+  // The label, not the full path: a directory named
+  // `section-section-clip-div-container-div-a` is not something anyone can scan.
+  const directory = runDirectory(project.name, selection.label, new Date());
 
   return withSession(tabId, async (session) => {
     const { backendNodeId } = await resolveElement(session, selection.marker);
@@ -44,16 +58,27 @@ export async function captureScrollRun(tabId: number, frames: number): Promise<C
 
     await adapter.pause();
     try {
-      const range = await adapter.getRange();
+      const range = await adapter.getRange({ frames: count, ...(stepPx ? { stepPx } : {}) });
       const stage = await adapter.stage(range);
       const written: string[] = [];
       /** Where the page actually landed, which is not always where we asked. */
       const positions: number[] = [];
-      let scale = 1;
       let bytes = 0;
       let pngWidth = 0;
       let pngHeight = 0;
       let target: CaptureRun['target'] = 'downloads';
+      let sizeDrift: string | undefined;
+
+      // Decided BEFORE the first capture, and never changed again.
+      //
+      // The earlier version captured frame 1 at scale 1 purely to learn what
+      // Chrome would return, then corrected — which shipped a first frame at
+      // twice the size of every other one, breaking the one property a contact
+      // sheet cannot do without. We measured the answer once (Measure's Retina
+      // card): a clipped capture inherits the device scale factor. So predict
+      // it, apply it uniformly, and verify rather than adapt.
+      const devicePixelRatio = await readDevicePixelRatio(session);
+      const scale = 1 / devicePixelRatio;
 
       for (let index = 0; index < count; index += 1) {
         const position = range.from + ((range.to - range.from) * index) / (count - 1);
@@ -75,9 +100,12 @@ export async function captureScrollRun(tabId: number, frames: number): Promise<C
           const png = readPngSize(data);
           pngWidth = png.width;
           pngHeight = png.height;
-          // One measurement decides the scale for the whole run, so every frame
-          // comes out the same size — see geometry.calibrateScale.
-          scale = calibrateScale(png.width, stage.width, 1);
+          // Verified, not corrected. Changing scale here is what produced the
+          // odd first frame; if the prediction is wrong we say so and keep
+          // every frame consistent with every other one.
+          if (Math.abs(png.width - stage.width) > 2) {
+            sizeDrift = `asked ${stage.width}px wide at scale ${scale}, got ${png.width}px`;
+          }
         }
 
         const path = `${directory}/${frameName(index + 1, count)}`;
@@ -100,6 +128,8 @@ export async function captureScrollRun(tabId: number, frames: number): Promise<C
         bytes,
         positions,
         target,
+        devicePixelRatio,
+        ...(sizeDrift ? { sizeDrift } : {}),
         project: slug(project.name),
       };
     } finally {

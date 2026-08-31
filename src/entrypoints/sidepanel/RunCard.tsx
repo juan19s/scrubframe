@@ -27,7 +27,15 @@ export function RunCard({ run }: { run: CaptureRun }) {
         <Row label="scale" value={`${run.scale}`} />
         <Row label="total" value={`${Math.round(run.bytes / 1024 / 1024 * 10) / 10} MB`} />
         <Row label="saved to" value={run.target === 'folder' ? 'project folder' : 'Downloads'} />
+        <Row label="dpr" value={`${run.devicePixelRatio}`} />
       </dl>
+
+      {run.sizeDrift && (
+        <p className="mt-2 text-[11px] leading-snug text-amber-300/80">
+          Frame size did not match the prediction: {run.sizeDrift}. Every frame is still the
+          same size as every other one.
+        </p>
+      )}
 
       <details className="mt-2">
         <summary className="cursor-pointer text-[10px] text-neutral-500 hover:text-neutral-300">

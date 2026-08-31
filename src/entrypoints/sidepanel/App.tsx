@@ -16,6 +16,7 @@ export default function App() {
   const [spike, setSpike] = useState<SpikeReport | null>(null);
   const [shot, setShot] = useState<ScreenshotResult | null>(null);
   const [frames, setFrames] = useState(12);
+  const [step, setStep] = useState('');
   const [run, setRun] = useState<CaptureRun | null>(null);
 
   const tabId = panel.tab.id;
@@ -106,7 +107,13 @@ export default function App() {
   const captureRun = () =>
     act(`Capturing ${frames} frames…`, async (id) => {
       setRun(null);
-      const response = await send({ type: 'capture/run', tabId: id, frames });
+      const stepPx = Number(step);
+      const response = await send({
+        type: 'capture/run',
+        tabId: id,
+        frames,
+        ...(step.trim() !== '' && stepPx > 0 ? { stepPx } : {}),
+      });
       if (response.ok) setRun(response.data);
       else panel.setError(response.error);
       return null;
@@ -188,9 +195,30 @@ export default function App() {
         >
           Capture scroll
         </button>
+        <div className="flex items-center justify-between">
+          <label htmlFor="scrubframe-step" className="text-[11px] text-neutral-400">
+            Step
+          </label>
+          <div className="flex items-center gap-1">
+            <input
+              id="scrubframe-step"
+              type="number"
+              min={1}
+              value={step}
+              placeholder="auto"
+              disabled={busy !== null}
+              onChange={(event) => setStep(event.target.value)}
+              className="w-16 rounded border border-neutral-800 bg-neutral-950 px-2 py-1 text-right font-mono text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-neutral-600 disabled:opacity-40"
+            />
+            <span className="text-[10px] text-neutral-600">px</span>
+          </div>
+        </div>
         <p className="text-[11px] leading-snug text-neutral-500">
-          Steps the page through the range where your element crosses the viewport, and
-          captures a frame at each stop.
+          {step.trim() === ''
+            ? 'Auto: steps through the whole span where your element crosses the viewport.'
+            : `Starts where the page is now and moves ${step}px per frame — ${
+                Number(step) * Math.max(1, frames - 1)
+              }px in total.`}
         </p>
         {run && <RunCard run={run} />}
       </section>
