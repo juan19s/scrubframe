@@ -61,7 +61,28 @@ async function handle(
       return recordSelection(senderTab(sender), message);
     case 'picker/cancelled':
       return cancelPicking(senderTab(sender));
+    default:
+      return unknownMessage(message);
   }
+}
+
+/**
+ * A message this build does not know about.
+ *
+ * TypeScript makes the switch above exhaustive, so at compile time this is
+ * unreachable — the `never` assignment proves it. At runtime it is very
+ * reachable: after an extension reload, a page still running the previous
+ * build keeps talking to the new worker. Falling out of the switch used to
+ * answer `{ok: true, data: undefined}`, and the old UI then blew up reading a
+ * property of undefined, several layers away from the actual cause.
+ */
+function unknownMessage(message: never): never {
+  const type = (message as { type?: unknown }).type;
+  throw new CdpError(
+    'unknown',
+    'Scrubframe was reloaded. Close and reopen the side panel.',
+    `unhandled message: ${String(type)}`,
+  );
 }
 
 function senderTab(sender: chrome.runtime.MessageSender): number {
