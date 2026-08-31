@@ -8,6 +8,10 @@ const DECLARED_PERMISSIONS = new Set([
   'scripting',
   'downloads',
   'storage',
+  // WXT adds this to the manifest itself when a sidepanel entrypoint exists.
+  // Leaving it out here would make every production build look like a dev
+  // build to the spike, which would then refuse to give a verdict.
+  'sidePanel',
 ]);
 
 /** How many background tabs we are willing to touch looking for a usable control. */

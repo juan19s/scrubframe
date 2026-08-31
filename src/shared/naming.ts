@@ -41,3 +41,68 @@ export function frameName(index: number, total: number): string {
   const width = Math.max(2, String(total).length);
   return `frame-${String(index).padStart(width, '0')}.png`;
 }
+
+/**
+ * Two-part public suffixes, curated.
+ *
+ * The correct source for this is the Public Suffix List, which is ~15,000
+ * rules maintained by Mozilla. Shipping it would be larger than the rest of
+ * the extension put together, in a project whose pitch is "it is small, read
+ * it yourself". So: the common cases, and honesty about the rest.
+ *
+ * What this gets wrong: an uncommon two-part suffix falls back to a one-part
+ * split, so `example.co.za` would come out as `co` rather than `example`. The
+ * project name is editable, which is what makes that an annoyance rather than
+ * a defect.
+ */
+const TWO_PART_SUFFIXES = new Set([
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk', 'net.uk',
+  'com.mx', 'org.mx', 'gob.mx', 'edu.mx', 'net.mx',
+  'com.ar', 'com.br', 'com.co', 'com.pe', 'com.ve', 'com.uy', 'com.ec',
+  'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au',
+  'co.jp', 'or.jp', 'ne.jp', 'ac.jp', 'go.jp',
+  'co.nz', 'co.in', 'co.kr', 'co.za', 'co.il', 'co.id', 'co.th',
+  'com.tr', 'com.cn', 'com.hk', 'com.sg', 'com.my', 'com.ph', 'com.tw',
+  'com.es', 'com.pt', 'com.pl', 'com.ua', 'com.sa', 'com.eg', 'com.ng',
+]);
+
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/**
+ * The default project name for a URL: what sits between the `www.` and the TLD.
+ *
+ * Subdomains are kept, minus `www`, because the result is a folder someone
+ * scans in Finder. If you work on both the blog and the main site, two folders
+ * called `example` help nobody — `blog-example` and `example` do.
+ *
+ *   www.era-residence.com        -> era-residence
+ *   blog.example.com             -> blog-example
+ *   app.staging.example.co.uk    -> app-staging-example
+ *   localhost:3000               -> localhost
+ */
+export function projectNameFor(url: string): string {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return 'project';
+  }
+  if (hostname === '') return 'project';
+
+  // An address is not a name, but it is what the user has. Keep it recognisable.
+  if (IPV4.test(hostname) || hostname.includes(':')) return slug(hostname);
+
+  const labels = hostname.split('.').filter(Boolean);
+  if (labels.length === 0) return 'project';
+  // localhost, or any single-label host on a LAN.
+  if (labels.length === 1) return slug(labels[0]!);
+
+  const withoutWww = labels[0] === 'www' ? labels.slice(1) : labels;
+  if (withoutWww.length === 1) return slug(withoutWww[0]!);
+
+  const lastTwo = withoutWww.slice(-2).join('.');
+  const suffixLabels = TWO_PART_SUFFIXES.has(lastTwo) ? 2 : 1;
+  const meaningful = withoutWww.slice(0, Math.max(1, withoutWww.length - suffixLabels));
+
+  return slug(meaningful.join('-'));
+}

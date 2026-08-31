@@ -14,6 +14,19 @@ import type { ScrubframeFailure } from '../shared/types';
 export default defineBackground(() => {
   registerTabCleanup();
 
+  // Asserting false rather than merely abstaining: the setting is a persisted
+  // profile pref, so a profile where it was ever turned on stays poisoned and
+  // would keep costing us the activeTab grant on every click.
+  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+
+  chrome.action.onClicked.addListener((tab) => {
+    // FIRST statement, and deliberately not awaited into. sidePanel.open()
+    // hard-requires a user gesture, and any await before it spends the
+    // activation — the call then rejects with "may only be called in response
+    // to a user gesture". Everything else can wait.
+    if (tab.id !== undefined) void chrome.sidePanel.open({ tabId: tab.id });
+  });
+
   chrome.runtime.onMessage.addListener((message: Request, sender, sendResponse) => {
     handle(message, sender)
       .then((data) => sendResponse({ ok: true, data }))
