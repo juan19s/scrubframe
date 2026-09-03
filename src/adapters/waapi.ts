@@ -47,11 +47,18 @@ export function createWaapiAdapter(session: CdpSession, backendNodeId: number): 
       // is when extractSpec() is called, returns nothing for the single most
       // common capture there is: a one-shot reveal.
       probe = result.probe;
-      if (result.frozen === 0 && result.probe.animations.length === 0) {
+      // These are two different situations and conflating them produced a
+      // message that sent the user looking for the wrong problem: "no duration
+      // to step through" when the real answer was "that element is not the one
+      // animating". `frozen` counts the whole page; `animations` counts this
+      // element.
+      if (result.probe.animations.length === 0) {
         throw new CdpError(
           'no-animations',
-          'Nothing on this element is animating right now. A one-shot reveal disappears once it has played — reload the page and capture before it runs, or use the scroll adapter.',
-          'getAnimations returned nothing attributable',
+          result.frozen > 0
+            ? `Nothing on this element is animating — though ${result.frozen} other animation(s) are running on the page. Pick one of those, or use Highlight animated to see which elements they are.`
+            : 'Nothing on this page is animating right now. A one-shot reveal disappears once it has played, so reload and capture before it runs — or use the scroll adapter.',
+          `attributed 0 of ${result.frozen} frozen`,
         );
       }
       return result;
