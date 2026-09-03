@@ -69,7 +69,7 @@ export function createWaapiAdapter(
         throw new CdpError(
           'no-animations',
           result.frozen > 0
-            ? `Nothing on this element is animating — though ${result.frozen} other animation(s) are running on the page. Pick one of those, or use Highlight animated to see which elements they are.`
+            ? `Nothing on this element is animating — though ${result.frozen} other animation(s) are running on the page. Run "What is animating here?" — it lists them and says which adapter to use.`
             : 'Nothing on this page is animating right now. A one-shot reveal disappears once it has played, so reload and capture before it runs — or use the scroll adapter.',
           `attributed 0 of ${result.frozen} frozen`,
         );

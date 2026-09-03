@@ -19,8 +19,10 @@ export default function App() {
   const [shot, setShot] = useState<ScreenshotResult | null>(null);
   const [frames, setFrames] = useState(12);
   const [step, setStep] = useState('');
-  const [adapter, setAdapter] = useState<AdapterId>('scroll');
-  const [area, setArea] = useState<AreaMode>('element');
+  const [adapterState, setAdapterState] = useState<AdapterId>('scroll');
+  const [areaState, setAreaState] = useState<AreaMode>('element');
+  const adapter = adapterState;
+  const area = areaState;
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [run, setRun] = useState<CaptureRun | null>(null);
 
@@ -127,6 +129,18 @@ export default function App() {
       else panel.setError(response.error);
       return null;
     });
+
+  // Switching modes has to clear the last failure. Leaving it up made a stale
+  // message from one adapter read as the new adapter's answer — which is
+  // exactly the wrong-problem confusion this panel keeps trying to avoid.
+  const setAdapter = (next: AdapterId) => {
+    panel.setError(null);
+    setAdapterState(next);
+  };
+  const setArea = (next: AreaMode) => {
+    panel.setError(null);
+    setAreaState(next);
+  };
 
   const inspect = () =>
     act('Looking at the page…', async (id) => {
