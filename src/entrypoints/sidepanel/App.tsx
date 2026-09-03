@@ -3,6 +3,8 @@ import { send } from '../../shared/messaging';
 import type { AdapterId, AreaMode, CaptureRun, ScreenshotResult } from '../../shared/types';
 import { armFolderPermission, chooseFolder, forgetFolder } from './folder';
 import { MeasureCard } from './MeasureCard';
+import type { ProbeResult } from '../../background/page-probe';
+import { ProbeCard } from './ProbeCard';
 import { ProjectCard } from './ProjectCard';
 import { RunCard } from './RunCard';
 import { SelectionCard } from './SelectionCard';
@@ -19,6 +21,7 @@ export default function App() {
   const [step, setStep] = useState('');
   const [adapter, setAdapter] = useState<AdapterId>('scroll');
   const [area, setArea] = useState<AreaMode>('element');
+  const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [run, setRun] = useState<CaptureRun | null>(null);
 
   const tabId = panel.tab.id;
@@ -125,6 +128,15 @@ export default function App() {
       return null;
     });
 
+  const inspect = () =>
+    act('Looking at the page…', async (id) => {
+      setProbe(null);
+      const response = await send({ type: 'probe/page', tabId: id });
+      if (response.ok) setProbe(response.data);
+      else panel.setError(response.error);
+      return null;
+    });
+
   const runSpike = () =>
     act('Attaching…', async (id) => {
       setSpike(null);
@@ -200,6 +212,16 @@ export default function App() {
       </section>
 
       <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
+        <button
+          type="button"
+          onClick={() => void inspect()}
+          disabled={!ready}
+          className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          What is animating here?
+        </button>
+        {probe && <ProbeCard probe={probe} current={adapter} onUse={setAdapter} />}
+
         <div className="flex gap-1 rounded-md border border-neutral-800 bg-neutral-950 p-1">
           {(
             [

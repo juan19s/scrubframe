@@ -1,3 +1,4 @@
+import type { ProbeResult } from '../background/page-probe';
 import type {
   AdapterId,
   CaptureRun,
@@ -21,6 +22,7 @@ export type Request =
   | { type: 'capture/run'; tabId: number; frames: number; stepPx?: number; adapter?: AdapterId }
   | { type: 'picker/start'; tabId: number }
   | { type: 'region/start'; tabId: number }
+  | { type: 'probe/page'; tabId: number }
   | { type: 'measure/element'; tabId: number }
   | { type: 'project/get'; tabId: number }
   | { type: 'project/set-name'; tabId: number; name: string }
@@ -45,6 +47,7 @@ export interface ResultMap {
   'capture/run': CaptureRun;
   'picker/start': SelectionState;
   'region/start': SelectionState;
+  'probe/page': ProbeResult;
   'region/drawn': SelectionState;
   'measure/element': Measurement;
   'project/get': ProjectState;
