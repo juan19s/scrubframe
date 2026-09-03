@@ -92,5 +92,8 @@ export function ProbeCard({
 }
 
 function labelFor(adapter: AdapterId): string {
-  return adapter === 'waapi' ? 'Time' : adapter === 'scroll' ? 'Scroll' : adapter;
+  if (adapter === 'waapi') return 'Time';
+  if (adapter === 'scroll') return 'Scroll';
+  if (adapter === 'gsap') return 'GSAP';
+  return adapter;
 }

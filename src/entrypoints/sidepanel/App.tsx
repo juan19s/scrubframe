@@ -227,6 +227,7 @@ export default function App() {
             [
               ['scroll', 'Scroll', 'Steps the page. Works on reveals and ScrollTrigger.'],
               ['waapi', 'Time', 'Freezes the timeline and reads the real easing.'],
+              ['gsap', 'GSAP', 'Steps GSAP tweens. For sites the Web Animations API cannot see.'],
             ] as const
           ).map(([id, label, hint]) => (
             <button
@@ -290,6 +291,8 @@ export default function App() {
         <p className="text-[11px] leading-snug text-neutral-500">
           {adapter === 'waapi'
             ? 'Pauses the document timeline and steps it in milliseconds. Reports the real cubic-bezier from the page.'
+            : adapter === 'gsap'
+              ? 'Steps GSAP tweens individually — its global timeline cannot be scrubbed. ScrollTrigger tweens are left to Scroll.'
             : step.trim() === ''
               ? 'Auto: steps through the whole span where your element crosses the viewport.'
               : `Starts where the page is now and moves ${step}px per frame — ${

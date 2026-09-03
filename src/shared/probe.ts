@@ -101,9 +101,14 @@ export function recommend(probe: PageProbe, elementWaapi: number | null): Recomm
   // recommending `waapi` on the strength of it would send the user down the
   // road that just failed them.
   if (libraries.gsap && libraries.gsapTweens > census.waapiTotal) {
+    if (libraries.scrollTrigger) {
+      warnings.push(
+        'ScrollTrigger is here too. Tweens it owns follow the scroll position rather than a clock, so GSAP cannot step those — Scrubframe leaves them alone and says how many.',
+      );
+    }
     return {
-      adapter: 'scroll',
-      reason: `This page runs GSAP with ${libraries.gsapTweens} live tweens; the Web Animations API can only see ${census.waapiTotal} of them. The GSAP adapter is not built yet, so Scroll is the one that works here.`,
+      adapter: 'gsap',
+      reason: `This page runs GSAP with ${libraries.gsapTweens} live tweens; the Web Animations API can only see ${census.waapiTotal} of them, so Time would report a fraction of the motion as if it were all of it.`,
       warnings,
       available: true,
     };

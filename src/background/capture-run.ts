@@ -1,6 +1,7 @@
 import type { AdapterId, CaptureRun } from '../shared/types';
 import { frameName, runDirectory, slug } from '../shared/naming';
 import { createScrollAdapter } from '../adapters/scroll';
+import { createGsapAdapter } from '../adapters/gsap';
 import { createWaapiAdapter } from '../adapters/waapi';
 import type { CaptureAdapter } from '../adapters/types';
 import { decodeBase64, writeArtifact } from './artifact-writer';
@@ -47,6 +48,7 @@ const ADAPTERS: Record<
 > = {
   scroll: createScrollAdapter,
   waapi: createWaapiAdapter,
+  gsap: createGsapAdapter,
 };
 
 export async function captureScrollRun(

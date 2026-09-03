@@ -524,3 +524,44 @@ falso y no accionable.
 Ahora el doble rAF corre contra un límite de 400ms y se detecta `document.hidden`
 explícitamente, con su propia frase: la pestaña tiene que estar visible, porque
 una pestaña de fondo no pinta y todos los frames saldrían idénticos.
+
+
+---
+
+## ADR-009 — La receta del SPEC para GSAP no funciona. Medido en un sitio real.
+
+La §4 dice: *"Usar `gsap.globalTimeline.pause()` y `.time(t)`"*.
+
+Medido en era-residence.com, GSAP 3.15.0, 29 tweens vivos:
+
+| Mecanismo | ¿Mueve el elemento? |
+|---|---|
+| `gsap.globalTimeline.time(t)` | **No.** Cero cambio en 0, 1, 2s |
+| `tween.time(t)` sobre un tween individual | **Sí** |
+| `tween.progress(p)` sobre un tween de ScrollTrigger | **No** |
+
+La línea de tiempo global de GSAP es el reloj raíz, no una línea de tiempo
+ordinaria: moverla no vuelve a renderizar a sus hijos. Mover cada tween sí, y de
+forma visible — un tween con `power2.out` leyó **57.8 de 100 a un cuarto de
+progreso**, que es exactamente la curva.
+
+Y los tweens que posee ScrollTrigger ignoran `progress()`, porque ScrollTrigger
+lo reescribe en cada tick. En ese sitio son **14 de 29**: la mitad del
+movimiento no es del reloj, es del scroll.
+
+**Decisión.** El adaptador enumera los hijos, **excluye los de ScrollTrigger** y
+mueve los demás uno por uno. Los excluidos se cuentan y se nombran, con la frase
+que dice a dónde llevarlos:
+
+> *"Every GSAP tween on this element is driven by ScrollTrigger (14 of them),
+> and those follow the scroll position rather than a clock. Use Scroll."*
+
+**Consecuencia que hay que decir en `ANIMATION.md`.** Como la línea global no se
+puede recorrer, no hay eje compartido donde colocar los tweens. Cada uno se
+mueve desde su propio cero, o sea **en paralelo** — que puede no ser como la
+página los secuencia. Se dice, en vez de fingir una línea de tiempo compuesta
+que no existe.
+
+Y las curvas de GSAP son **nombres**, no `cubic-bezier`. `power2.out` tiene una
+definición exacta dentro de GSAP pero no es una curva de CSS. Se reporta el
+nombre, no una traducción inventada.

@@ -22,7 +22,7 @@ function probe(over: Partial<PageProbe> = {}): PageProbe {
 }
 
 describe('recommend', () => {
-  it('sends a GSAP site to Scroll, and says why', () => {
+  it('sends a GSAP site to the GSAP adapter, and says why', () => {
     // The case that motivated all of this: era-residence.com runs 36 GSAP
     // tweens and getAnimations() sees 3. Recommending Time there is exactly the
     // advice that cost an afternoon.
@@ -33,7 +33,7 @@ describe('recommend', () => {
       }),
       0,
     );
-    expect(result.adapter).toBe('scroll');
+    expect(result.adapter).toBe('gsap');
     expect(result.reason).toContain('36 live tweens');
     expect(result.reason).toContain('3');
   });
@@ -48,7 +48,7 @@ describe('recommend', () => {
     );
     // Even with animations on the element, GSAP driving the page means Time
     // would report a fraction of the motion as if it were the whole thing.
-    expect(result.adapter).toBe('scroll');
+    expect(result.adapter).toBe('gsap');
   });
 
   it('recommends Time when the element genuinely has readable animations', () => {
@@ -63,6 +63,19 @@ describe('recommend', () => {
 
     const nowhere = recommend(probe(), null);
     expect(nowhere.reason).toContain('Nothing on this page is animating');
+  });
+
+  it('warns that ScrollTrigger tweens are not GSAP\'s to step', () => {
+    // Measured on a live site: a tween ScrollTrigger owns ignores progress(),
+    // because ScrollTrigger rewrites it every tick. Seeking those would produce
+    // frames that never change.
+    const result = recommend(
+      probe({ libraries: libraries({ gsap: true, gsapTweens: 29, scrollTrigger: true }) }),
+      0,
+    );
+    expect(result.adapter).toBe('gsap');
+    expect(result.warnings.join(' ')).toContain('ScrollTrigger');
+    expect(result.warnings.join(' ')).toContain('scroll position');
   });
 
   it('warns about Lenis instead of letting a capture fail mysteriously', () => {
