@@ -3,10 +3,13 @@ import { CdpError } from '../background/cdp-session';
 import type { Rect, VisualViewport } from '../background/geometry';
 import { clampToViewport, padRect, quadToRect, snapRect } from '../background/geometry';
 import { STAGE_PADDING } from '../background/element-handle';
+import { fitCubicBezier } from './bezier-fit';
 import { AWAIT_PAINT } from './page-scripts';
 import type { AnimationSpec, CaptureAdapter, TimelineRange } from './types';
 
 const GLOBAL = '__scrubframeGsap';
+/** Where the page samples the ease. Kept in step with SAMPLE_AT below. */
+const SAMPLE_POINTS = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
 const WATCHDOG_MS = 120_000;
 
 /** One tween, as the page reported it. */
@@ -147,7 +150,7 @@ export function createGsapAdapter(
           probe.scrollDriven > 0
             ? `${probe.scrollDriven} further tween(s) on this element are driven by ScrollTrigger and were left alone; capture those with the scroll adapter.`
             : '',
-          'GSAP eases are named rather than expressed as cubic-bezier. `power2.out` and friends have exact definitions in GSAP but are not CSS curves.',
+          'GSAP eases are functions in GSAP\'s own vocabulary, not CSS curves — a Webflow site reports names like "Ease" or "Out". So each curve was SAMPLED from the page\'s real easing function and a `cubic-bezier()` fitted to those samples. The samples are measurements; the bezier is a fit, and its error is printed so you can judge it. Where the fit lands on a curve CSS already names, the keyword is given instead.',
         ]
           .filter(Boolean)
           .join('\n\n'),
@@ -291,12 +294,31 @@ function resumeSource(): string {
  * and the label says which is which so nobody pastes a guess as a certainty.
  */
 function describeEase(tween: ProbedTween): string {
-  const fitted =
-    tween.easeFit && tween.easeFit.error < 0.05
-      ? ` ≈ ${tween.easeFit.name} (fitted, error ${tween.easeFit.error})`
-      : '';
-  const curve = tween.easeSamples.length > 0 ? ` · curve ${tween.easeSamples.join(', ')}` : '';
-  return `${tween.ease}${fitted}${curve}`;
+  const parts: string[] = [tween.ease];
+
+  // The bezier first, because it is the only part of this a developer can
+  // actually paste. A GSAP ease name is not a CSS curve; this is.
+  const bezier = fitCubicBezier(
+    tween.easeSamples.map((value, index) => ({
+      at: SAMPLE_POINTS[index] ?? index / (tween.easeSamples.length - 1),
+      value,
+    })),
+  );
+  if (bezier && bezier.error < 0.02) {
+    parts.push(
+      bezier.keyword
+        ? `= CSS \`${bezier.keyword}\` (${bezier.css}, fitted, error ${bezier.error})`
+        : `≈ ${bezier.css} (fitted, error ${bezier.error})`,
+    );
+  }
+
+  if (tween.easeFit && tween.easeFit.error < 0.05) {
+    parts.push(`≈ GSAP ${tween.easeFit.name}`);
+  }
+  if (tween.easeSamples.length > 0) {
+    parts.push(`curve ${tween.easeSamples.join(', ')}`);
+  }
+  return parts.join(' · ');
 }
 
 async function callOnElement<T>(
