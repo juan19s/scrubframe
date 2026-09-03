@@ -187,9 +187,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col gap-4 bg-[#0a0a0a] p-4 font-sans text-neutral-200">
       <header className="flex items-baseline justify-between">
         <h1 className="text-base font-semibold tracking-tight text-white">Scrubframe</h1>
-        <span className="rounded-full border border-neutral-800 px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral-500">
-          Phase 1
-        </span>
+        <span className="text-[10px] text-neutral-600">local · no network</span>
       </header>
 
       {!panel.tab.canPick && tabId !== null && <NoGrantNote />}
@@ -236,17 +234,6 @@ export default function App() {
         />
       </section>
 
-      <section className="flex flex-col gap-2 border-t border-neutral-900 pt-4">
-        <button
-          type="button"
-          onClick={() => void measure()}
-          disabled={!ready || panel.selection.status !== 'selected'}
-          className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Measure
-        </button>
-        {panel.measurement && <MeasureCard result={panel.measurement} />}
-      </section>
 
       <section className="flex flex-col gap-3 border-t border-neutral-900 pt-4">
         <button
@@ -374,6 +361,15 @@ export default function App() {
           Diagnostics
         </summary>
         <div className="mt-2 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => void measure()}
+            disabled={!ready || panel.selection.status !== 'selected'}
+            className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition hover:border-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Measure element
+          </button>
+          {panel.measurement && <MeasureCard result={panel.measurement} />}
           <button
             type="button"
             onClick={() => void runSpike()}
