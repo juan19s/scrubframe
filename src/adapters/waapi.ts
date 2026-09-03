@@ -4,7 +4,9 @@ import type { Rect, VisualViewport } from '../background/geometry';
 import { clampToViewport, padRect, quadToRect, snapRect } from '../background/geometry';
 import { STAGE_PADDING } from '../background/element-handle';
 import { AWAIT_PAINT } from './page-scripts';
-import { rangeFor, toSpec, type WaapiProbe } from './waapi-extract';
+import { bezierValueAt } from './bezier-fit';
+import { curveFromCssEasing } from './spacing';
+import { easingFor, rangeFor, toSpec, type WaapiProbe } from './waapi-extract';
 import type { AnimationSpec, CaptureAdapter, TimelineRange } from './types';
 
 const GLOBAL = '__scrubframeWaapi';
@@ -130,6 +132,19 @@ export function createWaapiAdapter(
       await evaluate(session, resumeSource(), true).catch(() => {
         // The page may be gone. Nothing left to restore.
       });
+    },
+
+    /** The longest animation's easing, parsed from its cubic-bezier. */
+    curve() {
+      if (!probe || probe.animations.length === 0) return null;
+      const dominant = probe.animations.reduce((longest, animation) =>
+        animation.timing.durationMs > longest.timing.durationMs ? animation : longest,
+      );
+      const { easing, composed } = easingFor(dominant.timing, dominant.keyframes);
+      // A composed easing is two curves applied in sequence and is not one
+      // bezier, so there is nothing single to invert. Even spacing, honestly.
+      if (composed) return null;
+      return curveFromCssEasing(easing, bezierValueAt);
     },
 
     async extractSpec(): Promise<AnimationSpec | null> {

@@ -8,8 +8,14 @@ import { AWAIT_PAINT } from './page-scripts';
 import type { AnimationSpec, CaptureAdapter, TimelineRange } from './types';
 
 const GLOBAL = '__scrubframeGsap';
-/** Where the page samples the ease. Kept in step with SAMPLE_AT below. */
-const SAMPLE_POINTS = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
+/**
+ * Where the page samples the ease. Kept in step with SAMPLE_AT below.
+ *
+ * Twenty-one points rather than a handful: the samples are inverted to place
+ * frames by progress, and that inversion is piecewise-linear over exactly these
+ * points, so a coarse grid puts kinks in the spacing. Sampling is free.
+ */
+const SAMPLE_POINTS = Array.from({ length: 21 }, (_, i) => i / 20);
 const WATCHDOG_MS = 120_000;
 
 /** One tween, as the page reported it. */
@@ -127,6 +133,26 @@ export function createGsapAdapter(
       });
     },
 
+    /**
+     * The longest tween's curve stands for the run.
+     *
+     * Tweens here are stepped in parallel from their own zeros and can have
+     * different eases, so there is no one curve. The longest one is the motion
+     * still going when the others have stopped, which makes it the one worth
+     * spacing frames by. ANIMATION.md names it.
+     */
+    curve() {
+      if (!probe || probe.tweens.length === 0) return null;
+      const dominant = probe.tweens.reduce((longest, tween) =>
+        tween.durationMs > longest.durationMs ? tween : longest,
+      );
+      if (dominant.easeSamples.length < 3) return null;
+      return dominant.easeSamples.map((value, index) => ({
+        at: SAMPLE_POINTS[index] ?? index / (dominant.easeSamples.length - 1),
+        value,
+      }));
+    },
+
     async extractSpec(): Promise<AnimationSpec | null> {
       if (!probe) return null;
       return {
@@ -182,7 +208,7 @@ const PAUSE_FUNCTION = `function () {
   const state = { entries: [], watchdog: 0 };
   const probe = { version: g.version || '?', tweens: [], scrollDriven };
 
-  const SAMPLE_AT = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
+  const SAMPLE_AT = Array.from({ length: 21 }, (_, i) => i / 20);
   const KNOWN = ['none','power1.in','power1.out','power1.inOut','power2.in','power2.out','power2.inOut','power3.out','power3.inOut','power4.out','expo.in','expo.out','expo.inOut','sine.out','sine.inOut','back.out','circ.out'];
   const round = (n) => Math.round(n * 10000) / 10000;
 

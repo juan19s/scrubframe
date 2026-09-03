@@ -28,6 +28,10 @@ export function RunCard({ run }: { run: CaptureRun }) {
         <Row label="total" value={`${Math.round(run.bytes / 1024 / 1024 * 10) / 10} MB`} />
         <Row label="saved to" value={run.target === 'folder' ? 'project folder' : 'Downloads'} />
         <Row label="dpr" value={`${run.devicePixelRatio}`} />
+        <Row
+          label="spacing"
+          value={run.spacing === 'eased' ? 'by progress (eased)' : 'by time (even)'}
+        />
       </dl>
 
       <p className="mt-2 text-[11px] leading-snug text-emerald-200/80">
@@ -44,6 +48,9 @@ export function RunCard({ run }: { run: CaptureRun }) {
         <p className="mt-2 text-[11px] leading-snug text-amber-300/80">
           Frames saved, contact sheet skipped: {run.sheetSkipped}
         </p>
+      )}
+      {run.spacingNote && (
+        <p className="mt-2 text-[11px] leading-snug text-neutral-400">{run.spacingNote}</p>
       )}
       {run.sizeDrift && (
         <p className="mt-2 text-[11px] leading-snug text-amber-300/80">

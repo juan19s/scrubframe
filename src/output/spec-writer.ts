@@ -30,6 +30,9 @@ export interface SpecInput {
   positions: number[];
   frameSize: { width: number; height: number };
   frameNames: string[];
+  /** How the frames were placed along the range. */
+  spacing?: 'even' | 'eased';
+  spacingNote?: string;
   sheetNames: string[];
   framesPerSheet: number;
   capturedAt: Date;
@@ -136,6 +139,17 @@ function frameTable(input: SpecInput, unit: 'ms' | 'px'): string[] {
     'These are the positions the page **actually landed on**, read back after each step —' +
       ' not the positions that were requested. On a page that fights the scroll they would' +
       ' differ, and the capture would have been refused before reaching this file.',
+    ...(input.spacing === 'eased'
+      ? [
+          '',
+          '**The frames are not evenly spaced in time.** They are placed one per equal slice' +
+            ' of PROGRESS, by inverting the easing curve above — so an ease-out gets frames' +
+            ' packed into its fast opening and spread across its slow tail. Read the column' +
+            ' above for the real times. Even spacing would have spent most of this sheet on' +
+            ' an animation that had already finished.',
+        ]
+      : []),
+    ...(input.spacingNote ? ['', input.spacingNote] : []),
   ];
 }
 

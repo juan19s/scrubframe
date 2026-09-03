@@ -4,6 +4,7 @@ import { createScrollAdapter } from '../adapters/scroll';
 import { createGsapAdapter } from '../adapters/gsap';
 import { createWaapiAdapter } from '../adapters/waapi';
 import type { CaptureAdapter } from '../adapters/types';
+import { spaceByProgress } from '../adapters/spacing';
 import { decodeBase64, writeArtifact } from './artifact-writer';
 import { createContactSheets } from '../output/contact-sheet';
 import { writeAnimationMarkdown } from '../output/spec-writer';
@@ -122,8 +123,15 @@ export async function captureScrollRun(
       const devicePixelRatio = await readDevicePixelRatio(session);
       const scale = 1 / devicePixelRatio;
 
+      // Frames spaced evenly in TIME are not spaced evenly in MOTION. For the
+      // eased tween measured on a real site, that put six of twelve frames on
+      // an animation that had already finished. Inverting the curve puts one
+      // frame per equal slice of progress instead, so every frame shows
+      // something the one before it did not.
+      const spacing = spaceByProgress(range.from, range.to, count, adapter.curve?.() ?? null);
+
       for (let index = 0; index < count; index += 1) {
-        const position = range.from + ((range.to - range.from) * index) / (count - 1);
+        const position = spacing.positions[index] ?? range.from;
         const landed = await adapter.seek(position);
 
         // Recomputed every frame: the stage is frozen in viewport space, and
@@ -207,6 +215,8 @@ export async function captureScrollRun(
         sheetNames: sheets,
         framesPerSheet: builder?.plans[0]?.cells.length ?? count,
         capturedAt: new Date(),
+        spacing: spacing.mode,
+        ...(spacing.note ? { spacingNote: spacing.note } : {}),
         spec: await adapter.extractSpec(),
       });
       const specWrite = await writeArtifact(`${directory}/ANIMATION.md`, new Blob([markdown]));
@@ -223,6 +233,8 @@ export async function captureScrollRun(
         pngHeight,
         bytes,
         positions,
+        spacing: spacing.mode,
+        ...(spacing.note ? { spacingNote: spacing.note } : {}),
         target,
         sheets,
         ...(sheetSkipped ? { sheetSkipped } : {}),

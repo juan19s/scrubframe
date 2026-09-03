@@ -131,4 +131,12 @@ export interface CaptureAdapter {
   /** Restores the page. Always called, including when the run throws. */
   resume(): Promise<void>;
   extractSpec(): Promise<AnimationSpec | null>;
+  /**
+   * The easing curve driving this run, sampled — when the technology has one.
+   *
+   * Used to place frames by progress rather than by clock. Scroll returns
+   * nothing, which is correct: its axis is scroll position, and that is already
+   * the one the user cares about.
+   */
+  curve?(): readonly { at: number; value: number }[] | null;
 }

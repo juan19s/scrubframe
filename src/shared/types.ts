@@ -200,6 +200,10 @@ export interface CaptureRun {
   positions: number[];
   target: 'folder' | 'downloads';
   devicePixelRatio: number;
+  /** 'eased' = frames placed by equal progress; 'even' = by equal time. */
+  spacing: 'even' | 'eased';
+  /** Why it fell back to even spacing, when it did. */
+  spacingNote?: string;
   /** Contact sheet filenames, in order. */
   sheets: string[];
   /** The markdown half of the deliverable. */
