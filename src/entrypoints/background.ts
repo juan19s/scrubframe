@@ -1,7 +1,12 @@
 import { captureSingleFrame } from '../background/capture-engine';
 import { captureScrollRun } from '../background/capture-run';
 import { CdpError } from '../background/cdp-session';
-import { cancelPicking, recordSelection, startPicking } from '../background/picker-control';
+import {
+  cancelPicking,
+  recordRegion,
+  recordSelection,
+  startPicking,
+} from '../background/picker-control';
 import {
   clearSelection,
   readPopupState,
@@ -50,7 +55,11 @@ async function handle(
     case 'capture/run':
       return captureScrollRun(message.tabId, message.frames, message.stepPx, message.adapter);
     case 'picker/start':
-      return startPicking(message.tabId);
+      return startPicking(message.tabId, 'element');
+    case 'region/start':
+      return startPicking(message.tabId, 'region');
+    case 'region/drawn':
+      return recordRegion(senderTab(sender), message);
     case 'measure/element':
       return measureSelection(message.tabId);
     case 'project/get':

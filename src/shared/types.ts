@@ -92,6 +92,27 @@ export interface StoredSelection {
 }
 
 /**
+ * A rectangle the user drew, in viewport CSS pixels.
+ *
+ * The crop has always been a window on the viewport — the picked element only
+ * ever served to compute one. Drawing it directly skips the whole element
+ * identification problem, which is what makes a crowded header hard to pick
+ * from in the first place.
+ *
+ * `scrollY` is kept so the region can be reported honestly: it says where the
+ * page was when the rectangle was drawn, not where it will be during capture.
+ */
+export interface SelectedRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scrollY: number;
+  url: string;
+  drawnAt: number;
+}
+
+/**
  * The popup owns no state of its own — it closes the moment the user clicks
  * into the page to pick, taking any React state with it. It asks for this on
  * mount instead.
@@ -99,7 +120,11 @@ export interface StoredSelection {
 export type SelectionState =
   | { status: 'none' }
   | { status: 'picking' }
-  | { status: 'selected'; selection: StoredSelection };
+  | { status: 'selected'; selection: StoredSelection }
+  | { status: 'region'; region: SelectedRegion };
+
+/** Which way the capture area is chosen. */
+export type AreaMode = 'element' | 'region';
 
 /** The project a site's captures belong to. */
 export interface ProjectState {

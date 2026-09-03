@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { send } from '../../shared/messaging';
-import type { AdapterId, CaptureRun, ScreenshotResult } from '../../shared/types';
+import type { AdapterId, AreaMode, CaptureRun, ScreenshotResult } from '../../shared/types';
 import { armFolderPermission, chooseFolder, forgetFolder } from './folder';
 import { MeasureCard } from './MeasureCard';
 import { ProjectCard } from './ProjectCard';
@@ -18,6 +18,7 @@ export default function App() {
   const [frames, setFrames] = useState(12);
   const [step, setStep] = useState('');
   const [adapter, setAdapter] = useState<AdapterId>('scroll');
+  const [area, setArea] = useState<AreaMode>('element');
   const [run, setRun] = useState<CaptureRun | null>(null);
 
   const tabId = panel.tab.id;
@@ -72,7 +73,10 @@ export default function App() {
   const pick = () =>
     act('Starting picker…', async (id) => {
       panel.setMeasurement(null);
-      const response = await send({ type: 'picker/start', tabId: id });
+      const response = await send({
+        type: area === 'region' ? 'region/start' : 'picker/start',
+        tabId: id,
+      });
       if (response.ok) panel.setSelection(response.data);
       else panel.setError(response.error);
       return null;
@@ -152,7 +156,29 @@ export default function App() {
       </section>
 
       <section className="flex flex-col gap-2 border-t border-neutral-900 pt-4">
+        <div className="flex gap-1 rounded-md border border-neutral-800 bg-neutral-950 p-1">
+          {(
+            [
+              ['element', 'Element', 'Crop to a node. Needed to read real timing.'],
+              ['region', 'Region', 'Draw a rectangle. Ignores the DOM entirely.'],
+            ] as const
+          ).map(([id, label, hint]) => (
+            <button
+              key={id}
+              type="button"
+              title={hint}
+              onClick={() => setArea(id)}
+              disabled={busy !== null}
+              className={`flex-1 rounded px-2 py-1 text-[11px] font-medium transition disabled:opacity-40 ${
+                area === id ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <SelectionCard
+          area={area}
           state={panel.selection}
           currentUrl={panel.tab.url}
           onPick={() => void pick()}

@@ -9,6 +9,7 @@ import { writeAnimationMarkdown } from '../output/spec-writer';
 import { base64Bytes, readPngSize } from './capture-engine';
 import { CdpError, withSession, type CdpSession } from './cdp-session';
 import { clipFor, resolveElement } from './element-handle';
+import { clampToViewport, snapRect } from './geometry';
 import { projectStateFor } from './project';
 import { readSelection, selectionOf } from './selection';
 
@@ -40,7 +41,10 @@ export const MAX_FRAMES = 60;
  * subject subtracts exactly the motion being captured.
  */
 /** Which adapters the capture loop can drive today. */
-const ADAPTERS: Record<string, (session: CdpSession, backendNodeId: number) => CaptureAdapter> = {
+const ADAPTERS: Record<
+  string,
+  (session: CdpSession, backendNodeId: number | null) => CaptureAdapter
+> = {
   scroll: createScrollAdapter,
   waapi: createWaapiAdapter,
 };
@@ -52,9 +56,15 @@ export async function captureScrollRun(
   adapterId: AdapterId = 'scroll',
 ): Promise<CaptureRun> {
   const count = Math.round(Math.min(MAX_FRAMES, Math.max(MIN_FRAMES, frames)));
-  const selection = selectionOf(await readSelection(tabId));
-  if (!selection) {
-    throw new CdpError('element-gone', 'Nothing is selected. Use "Pick element" first.', '');
+  const state = await readSelection(tabId);
+  const selection = selectionOf(state);
+  const region = state.status === 'region' ? state.region : null;
+  if (!selection && !region) {
+    throw new CdpError(
+      'element-gone',
+      'Nothing is selected. Pick an element or draw an area first.',
+      '',
+    );
   }
 
   const tab = await chrome.tabs.get(tabId);
@@ -62,10 +72,13 @@ export async function captureScrollRun(
   const project = await projectStateFor(url);
   // The label, not the full path: a directory named
   // `section-section-clip-div-container-div-a` is not something anyone can scan.
-  const directory = runDirectory(project.name, selection.label, new Date());
+  const directory = runDirectory(project.name, selection?.label ?? 'region', new Date());
 
   return withSession(tabId, async (session) => {
-    const { backendNodeId } = await resolveElement(session, selection.marker);
+    // A drawn region carries its own crop, so there is nothing to resolve.
+    const backendNodeId = selection
+      ? (await resolveElement(session, selection.marker)).backendNodeId
+      : null;
     const build = ADAPTERS[adapterId];
     if (!build) {
       throw new CdpError(
@@ -79,7 +92,11 @@ export async function captureScrollRun(
     await adapter.pause();
     try {
       const range = await adapter.getRange({ frames: count, ...(stepPx ? { stepPx } : {}) });
-      const stage = await adapter.stage(range);
+      const stage = region
+        ? snapRect(
+            clampToViewport(region, (await session.send('Page.getLayoutMetrics')).cssVisualViewport),
+          )
+        : await adapter.stage(range);
       let builder: ReturnType<typeof createContactSheets> | null = null;
       const written: string[] = [];
       /** Where the page actually landed, which is not always where we asked. */
@@ -128,7 +145,7 @@ export async function captureScrollRun(
           builder = createContactSheets({
             frame: { width: png.width, height: png.height },
             totalFrames: count,
-            legend: `${project.name} · ${selection.label} · ${adapter.id} · ${count} frames`,
+            legend: `${project.name} · ${selection?.label ?? 'drawn area'} · ${adapter.id} · ${count} frames`,
             unit: range.unit,
           });
           // Verified, not corrected. Changing scale here is what produced the
@@ -178,8 +195,8 @@ export async function captureScrollRun(
       const markdown = writeAnimationMarkdown({
         url,
         project: project.name,
-        selector: selection.selector,
-        label: selection.label,
+        selector: selection?.selector ?? 'a drawn area',
+        label: selection?.label ?? 'region',
         adapter: adapter.id,
         range,
         positions,

@@ -28,7 +28,10 @@ const WATCHDOG_MS = 120_000;
  * header spinner left running would smear across the sheet for reasons the
  * timeline cannot explain.
  */
-export function createWaapiAdapter(session: CdpSession, backendNodeId: number): CaptureAdapter {
+export function createWaapiAdapter(
+  session: CdpSession,
+  backendNodeId: number | null,
+): CaptureAdapter {
   let probe: WaapiProbe | null = null;
 
   return {
@@ -36,6 +39,16 @@ export function createWaapiAdapter(session: CdpSession, backendNodeId: number): 
     label: 'Web Animations',
 
     async pause() {
+      if (backendNodeId === null) {
+        // The whole point of this adapter is reading the timing off a specific
+        // element. A drawn rectangle has no element to attribute anything to,
+        // so refusing beats capturing frames with an empty timing table.
+        throw new CdpError(
+          'no-animations',
+          'Reading real timing needs an element, not a drawn area. Switch Area to Element, or capture this region with Scroll.',
+          'waapi requires an element',
+        );
+      }
       const result = await callOnElement<{ probe: WaapiProbe; frozen: number }>(
         session,
         backendNodeId,
@@ -87,6 +100,9 @@ export function createWaapiAdapter(session: CdpSession, backendNodeId: number): 
      * trade; ANIMATION.md says the element travels through a fixed window.
      */
     async stage() {
+      if (backendNodeId === null) {
+        throw new CdpError('unknown', 'A drawn region is its own stage.', 'no element');
+      }
       const { box, viewport } = await measure(session, backendNodeId);
       const generous = Math.max(STAGE_PADDING, Math.round(Math.max(box.width, box.height) * 0.25));
       return snapRect(clampToViewport(padRect(box, generous), viewport));

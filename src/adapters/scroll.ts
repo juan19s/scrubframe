@@ -53,7 +53,7 @@ export interface ScrollAdapter {
  */
 export function createScrollAdapter(
   session: CdpSession,
-  backendNodeId: number,
+  backendNodeId: number | null,
 ): ScrollAdapter {
   let restoreTo: { x: number; y: number } | null = null;
 
@@ -73,6 +73,30 @@ export function createScrollAdapter(
     },
 
     async getRange(options) {
+      // With a drawn region there is no element to centre the range on, so the
+      // user's step is the only intent available — and without one, the whole
+      // document is the honest default rather than a guess.
+      if (backendNodeId === null) {
+        const metrics = await session.send('Page.getLayoutMetrics');
+        const maxScroll = Math.max(
+          0,
+          metrics.cssContentSize.height - metrics.cssVisualViewport.clientHeight,
+        );
+        const from = clamp(restoreTo?.y ?? 0, 0, maxScroll);
+        const to =
+          options.stepPx && options.stepPx > 0
+            ? clamp(from + options.stepPx * Math.max(1, options.frames - 1), 0, maxScroll)
+            : maxScroll;
+        if (to - from < 1) {
+          throw new CdpError(
+            'element-invisible',
+            'There is nothing left to scroll from here. Scroll up, or set a step.',
+            `range ${from}..${to}`,
+          );
+        }
+        return { from, to, unit: 'px' };
+      }
+
       const { box, viewport, content } = await measure(session, backendNodeId);
       const documentTop = box.y + viewport.pageY;
       const maxScroll = Math.max(0, content.height - viewport.clientHeight);
@@ -112,6 +136,9 @@ export function createScrollAdapter(
      * `documentTop - from + height`.
      */
     async stage(range) {
+      if (backendNodeId === null) {
+        throw new CdpError('unknown', 'A drawn region is its own stage.', 'no element');
+      }
       const { box, viewport } = await measure(session, backendNodeId);
       const documentTop = box.y + viewport.pageY;
       const top = documentTop - range.to;

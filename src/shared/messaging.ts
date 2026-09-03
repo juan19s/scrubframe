@@ -20,6 +20,7 @@ export type Request =
   | { type: 'capture/screenshot'; tabId: number }
   | { type: 'capture/run'; tabId: number; frames: number; stepPx?: number; adapter?: AdapterId }
   | { type: 'picker/start'; tabId: number }
+  | { type: 'region/start'; tabId: number }
   | { type: 'measure/element'; tabId: number }
   | { type: 'project/get'; tabId: number }
   | { type: 'project/set-name'; tabId: number; name: string }
@@ -28,13 +29,23 @@ export type Request =
   // picker -> background. These carry no tabId: the background reads it from
   // the message sender, which is the only trustworthy source for it.
   | { type: 'picker/selected'; marker: string; selector: string; label: string }
-  | { type: 'picker/cancelled' };
+  | { type: 'picker/cancelled' }
+  | {
+      type: 'region/drawn';
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      scrollY: number;
+    };
 
 export interface ResultMap {
   'spike/attach-check': SpikeReport;
   'capture/screenshot': ScreenshotResult;
   'capture/run': CaptureRun;
   'picker/start': SelectionState;
+  'region/start': SelectionState;
+  'region/drawn': SelectionState;
   'measure/element': Measurement;
   'project/get': ProjectState;
   'project/set-name': ProjectState;
