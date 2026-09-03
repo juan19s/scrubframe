@@ -10,7 +10,7 @@ export interface AnimatedCandidate {
   label: string;
   /** What drives it: a @keyframes name, a transition property, or 'SMIL'. */
   driver: string;
-  kind: 'waapi' | 'smil';
+  kind: 'waapi' | 'smil' | 'gsap' | 'gsap-scroll';
   /** Milliseconds, when the technology reports one. */
   durationMs: number | null;
 }

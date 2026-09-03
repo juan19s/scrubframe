@@ -1,4 +1,10 @@
-import type { AnimationCensus, LibraryReport, PageProbe, Recommendation } from '../shared/probe';
+import type {
+  AnimatedCandidate,
+  AnimationCensus,
+  LibraryReport,
+  PageProbe,
+  Recommendation,
+} from '../shared/probe';
 import { recommend } from '../shared/probe';
 import { CdpError } from './cdp-session';
 import { readSelection, selectionOf } from './selection';
@@ -25,7 +31,9 @@ export interface ProbeResult extends PageProbe {
  */
 export async function probePage(tabId: number): Promise<ProbeResult> {
   const census = await inject<AnimationCensus>(tabId, CENSUS_SCRIPT, 'ISOLATED');
-  const main = await inject<LibraryReport & { waapiTotal: number }>(
+  const main = await inject<
+    LibraryReport & { waapiTotal: number; candidates: AnimatedCandidate[] }
+  >(
     tabId,
     LIBRARY_SCRIPT,
     'MAIN',
@@ -49,8 +57,15 @@ export async function probePage(tabId: number): Promise<ProbeResult> {
         motionOne: false,
       };
 
+  // Merged rather than kept apart: the user is choosing an element, and which
+  // world reported it is not their problem.
+  const merged: AnimationCensus = {
+    ...census,
+    candidates: [...census.candidates, ...(main?.candidates ?? [])],
+  };
+
   const probe: PageProbe = {
-    census,
+    census: merged,
     libraries,
     // The negative control. The isolated-world census rests on an argument
     // about Blink's IDL; comparing the two counts turns it into a measurement.
@@ -58,7 +73,7 @@ export async function probePage(tabId: number): Promise<ProbeResult> {
   };
 
   const selection = selectionOf(await readSelection(tabId));
-  const elementWaapi = selection ? countForElement(census, selection.label) : null;
+  const elementWaapi = selection ? countForElement(merged, selection.label) : null;
 
   return { ...probe, elementWaapi, recommendation: recommend(probe, elementWaapi) };
 }

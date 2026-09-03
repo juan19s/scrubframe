@@ -66,30 +66,51 @@ export function ProbeCard({
       ))}
 
       {census.candidates.length > 0 && (
-        <details className="mt-2">
+        <details className="mt-2" open>
           <summary className="cursor-pointer text-[10px] text-neutral-500 hover:text-neutral-300">
-            {census.candidates.length} animated element(s)
+            {census.candidates.length} animated element(s) — pick one of these
           </summary>
           <ul className="mt-1 space-y-0.5">
-            {census.candidates.slice(0, 12).map((candidate, index) => (
+            {census.candidates.slice(0, 20).map((candidate, index) => (
               <li
                 key={`${candidate.label}-${index}`}
-                className="truncate font-mono text-[10px] text-neutral-400"
+                className="flex items-baseline gap-1 truncate font-mono text-[10px]"
                 title={`${candidate.label} — ${candidate.driver}`}
               >
-                <span className={candidate.kind === 'smil' ? 'text-amber-400/80' : 'text-neutral-300'}>
-                  {candidate.label}
-                </span>{' '}
-                {candidate.driver}
-                {candidate.durationMs !== null ? ` ${Math.round(candidate.durationMs)}ms` : ''}
+                <span className={TONE[candidate.kind]}>{candidate.label}</span>
+                <span className="text-neutral-600">{candidate.driver}</span>
+                {candidate.durationMs ? (
+                  <span className="text-neutral-600">{Math.round(candidate.durationMs)}ms</span>
+                ) : null}
+                <span className="ml-auto shrink-0 text-neutral-700">{USE[candidate.kind]}</span>
               </li>
             ))}
           </ul>
+          {census.candidates.length > 20 && (
+            <p className="mt-1 text-[10px] text-neutral-600">
+              …and {census.candidates.length - 20} more.
+            </p>
+          )}
         </details>
       )}
     </div>
   );
 }
+
+/** Colour says what drives it; the trailing word says which adapter to use. */
+const TONE: Record<string, string> = {
+  waapi: 'text-emerald-300',
+  gsap: 'text-sky-300',
+  'gsap-scroll': 'text-violet-300',
+  smil: 'text-amber-400/80',
+};
+
+const USE: Record<string, string> = {
+  waapi: 'Time',
+  gsap: 'GSAP',
+  'gsap-scroll': 'Scroll',
+  smil: 'none',
+};
 
 function labelFor(adapter: AdapterId): string {
   if (adapter === 'waapi') return 'Time';
