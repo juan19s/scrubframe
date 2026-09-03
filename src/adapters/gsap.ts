@@ -16,7 +16,14 @@ interface ProbedTween {
   repeat: number;
   target: string;
   properties: string[];
+  /** What the page author wrote. GSAP's own vocabulary, not a CSS curve. */
   ease: string;
+  /** The resolved curve, sampled. Numbers rather than a name nobody can act on. */
+  easeSamples: number[];
+  /** Nearest standard GSAP ease, and how far off it is. A fit, not a fact. */
+  easeFit: { name: string; error: number } | null;
+  /** The values the tween animates TO. GSAP computes `from` at run time. */
+  to: Record<string, string | number>;
   scrollDriven: boolean;
 }
 
@@ -125,14 +132,13 @@ export function createGsapAdapter(
         properties: probe.tweens.flatMap((tween) =>
           tween.properties.map((property) => ({
             property,
-            // GSAP holds the authored end value in vars and computes the start
-            // from the element at run time, so a from/to pair read off a paused
-            // tween would be a snapshot rather than the authored intent.
-            from: '(computed at runtime)',
-            to: '(see raw tweens)',
+            // GSAP reads the start value off the element when the tween runs, so
+            // there is no authored `from`. The `to` is authored, and is in vars.
+            from: '(read from the element at run time)',
+            to: String(tween.to[property] ?? '(see raw tweens)'),
             durationMs: tween.durationMs,
             delayMs: 0,
-            easing: tween.ease,
+            easing: describeEase(tween),
           })),
         ),
         rawKeyframes: probe.tweens.map((tween) => ({ ...tween })),
@@ -173,8 +179,40 @@ const PAUSE_FUNCTION = `function () {
   const state = { entries: [], watchdog: 0 };
   const probe = { version: g.version || '?', tweens: [], scrollDriven };
 
+  const SAMPLE_AT = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
+  const KNOWN = ['none','power1.in','power1.out','power1.inOut','power2.in','power2.out','power2.inOut','power3.out','power3.inOut','power4.out','expo.in','expo.out','expo.inOut','sine.out','sine.inOut','back.out','circ.out'];
+  const round = (n) => Math.round(n * 10000) / 10000;
+
   owned.forEach((tween, index) => {
     const target = tween.targets()[0];
+    const authored = typeof tween.vars.ease === 'string' ? tween.vars.ease
+      : (tween.vars.ease && tween.vars.ease.name) || '(default)';
+    const animated = Object.keys(tween.vars || {}).filter(
+      (k) => !['duration','delay','ease','repeat','yoyo','stagger','onComplete','onUpdate','scrollTrigger','paused','immediateRender','lazy','overwrite','parent','startAt','inherit','data','id','callbackScope','repeatDelay','onStart','onReverseComplete','runBackwards','keyframes'].includes(k),
+    );
+
+    // Sampling beats naming. GSAP eases are its own vocabulary — a Webflow site
+    // reports things like "Out" — and none of them are CSS curves. The numbers
+    // are what a model can actually fit something to.
+    let samples = [];
+    let fit = null;
+    try {
+      const resolved = g.parseEase(tween.vars.ease);
+      if (typeof resolved === 'function') {
+        samples = SAMPLE_AT.map((p) => round(resolved(p)));
+        let best = null;
+        for (const name of KNOWN) {
+          const other = g.parseEase(name);
+          if (typeof other !== 'function') continue;
+          const error = SAMPLE_AT.reduce((sum, p) => sum + Math.abs(other(p) - resolved(p)), 0);
+          if (!best || error < best.error) best = { name, error: round(error) };
+        }
+        fit = best;
+      }
+    } catch {
+      // An ease we cannot resolve is reported by name alone.
+    }
+
     state.entries.push({ tween, time: tween.time(), paused: tween.paused() });
     tween.pause();
     probe.tweens.push({
@@ -185,10 +223,15 @@ const PAUSE_FUNCTION = `function () {
         ? target.tagName.toLowerCase() + (target.className && typeof target.className === 'string'
             ? '.' + target.className.split(' ')[0] : '')
         : '(object)',
-      properties: Object.keys(tween.vars || {}).filter(
-        (k) => !['duration','delay','ease','repeat','yoyo','stagger','onComplete','onUpdate','scrollTrigger','paused','immediateRender','lazy','overwrite','parent','startAt','inherit','data','id','callbackScope','repeatDelay','onStart','onReverseComplete','runBackwards','keyframes'].includes(k),
+      properties: animated,
+      ease: authored,
+      easeSamples: samples,
+      easeFit: fit,
+      to: Object.fromEntries(
+        animated
+          .map((k) => [k, tween.vars[k]])
+          .filter(([, v]) => typeof v === 'string' || typeof v === 'number'),
       ),
-      ease: (tween.vars && typeof tween.vars.ease === 'string' ? tween.vars.ease : 'power1.out'),
       scrollDriven: false,
     });
   });
@@ -237,6 +280,23 @@ function resumeSource(): string {
     delete globalThis.${GLOBAL};
     return restored;
   })()`;
+}
+
+/**
+ * The easing cell, measured first and named second.
+ *
+ * A GSAP ease is a function named in GSAP's own vocabulary, and on a Webflow
+ * site that name can be as unhelpful as "Out". So the curve is sampled and
+ * matched against the standard eases: the samples are fact, the name is a fit,
+ * and the label says which is which so nobody pastes a guess as a certainty.
+ */
+function describeEase(tween: ProbedTween): string {
+  const fitted =
+    tween.easeFit && tween.easeFit.error < 0.05
+      ? ` ≈ ${tween.easeFit.name} (fitted, error ${tween.easeFit.error})`
+      : '';
+  const curve = tween.easeSamples.length > 0 ? ` · curve ${tween.easeSamples.join(', ')}` : '';
+  return `${tween.ease}${fitted}${curve}`;
 }
 
 async function callOnElement<T>(

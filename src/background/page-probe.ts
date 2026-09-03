@@ -143,11 +143,14 @@ export async function selectCandidate(
     args: [source, sourceIndex, expectedLabel],
     func: (from: string, index: number, label: string) => {
       const describe = (element: Element): string => {
-        const raw =
-          (element as HTMLElement).className ??
-          (element as unknown as { className?: { baseVal?: string } }).className?.baseVal ??
-          '';
-        const classes = String(raw).split(' ').filter(Boolean).slice(0, 2);
+        // SVG className is an SVGAnimatedString object, not a string.
+        const raw = (element as HTMLElement | SVGElement).className as
+          | string
+          | { baseVal?: string };
+        const classes = String(typeof raw === 'string' ? raw : (raw?.baseVal ?? ''))
+          .split(' ')
+          .filter(Boolean)
+          .slice(0, 2);
         return element.tagName.toLowerCase() + (classes.length ? '.' + classes.join('.') : '');
       };
 

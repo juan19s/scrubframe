@@ -50,10 +50,15 @@ export default defineUnlistedScript(() => {
         seen.add(target);
         const rect = target.getBoundingClientRect();
         if (rect.width < 1 || rect.height < 1) continue;
+        // An SVG element's className is an SVGAnimatedString, which is truthy —
+        // so ?? never falls through and String() yields
+        // "[object SVGAnimatedString]". It poisoned the label AND the folder
+        // name: 20260902_text-object-svganimatedstring.
+        const rawClass = (target as HTMLElement | SVGElement).className as
+          | string
+          | { baseVal?: string };
         const classes = String(
-          (target as HTMLElement).className ??
-            (target as unknown as { className?: { baseVal?: string } }).className?.baseVal ??
-            '',
+          typeof rawClass === 'string' ? rawClass : (rawClass?.baseVal ?? ''),
         )
           .split(' ')
           .filter(Boolean)
