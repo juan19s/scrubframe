@@ -23,6 +23,13 @@ export type Request =
   | { type: 'picker/start'; tabId: number }
   | { type: 'region/start'; tabId: number }
   | { type: 'probe/page'; tabId: number }
+  | {
+      type: 'probe/select';
+      tabId: number;
+      source: 'census' | 'gsap';
+      sourceIndex: number;
+      label: string;
+    }
   | { type: 'measure/element'; tabId: number }
   | { type: 'project/get'; tabId: number }
   | { type: 'project/set-name'; tabId: number; name: string }
@@ -48,6 +55,7 @@ export interface ResultMap {
   'picker/start': SelectionState;
   'region/start': SelectionState;
   'probe/page': ProbeResult;
+  'probe/select': SelectionState;
   'region/drawn': SelectionState;
   'measure/element': Measurement;
   'project/get': ProjectState;

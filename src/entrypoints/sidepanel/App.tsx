@@ -4,6 +4,7 @@ import type { AdapterId, AreaMode, CaptureRun, ScreenshotResult } from '../../sh
 import { armFolderPermission, chooseFolder, forgetFolder } from './folder';
 import { MeasureCard } from './MeasureCard';
 import type { ProbeResult } from '../../background/page-probe';
+import type { AnimatedCandidate } from '../../shared/probe';
 import { ProbeCard } from './ProbeCard';
 import { ProjectCard } from './ProjectCard';
 import { RunCard } from './RunCard';
@@ -151,6 +152,28 @@ export default function App() {
       return null;
     });
 
+  /** One click: mark the element, and move to the adapter that can step it. */
+  const chooseCandidate = (candidate: AnimatedCandidate) =>
+    act(`Selecting ${candidate.label}…`, async (id) => {
+      const response = await send({
+        type: 'probe/select',
+        tabId: id,
+        source: candidate.source,
+        sourceIndex: candidate.sourceIndex,
+        label: candidate.label,
+      });
+      if (!response.ok) {
+        panel.setError(response.error);
+        return null;
+      }
+      panel.setSelection(response.data);
+      setAreaState('element');
+      setAdapterState(
+        candidate.kind === 'waapi' ? 'waapi' : candidate.kind === 'gsap' ? 'gsap' : 'scroll',
+      );
+      return null;
+    });
+
   const runSpike = () =>
     act('Attaching…', async (id) => {
       setSpike(null);
@@ -234,7 +257,15 @@ export default function App() {
         >
           What is animating here?
         </button>
-        {probe && <ProbeCard probe={probe} current={adapter} onUse={setAdapter} />}
+        {probe && (
+          <ProbeCard
+            probe={probe}
+            current={adapter}
+            onUse={setAdapter}
+            onSelect={(candidate) => void chooseCandidate(candidate)}
+            busy={busy !== null}
+          />
+        )}
 
         <div className="flex gap-1 rounded-md border border-neutral-800 bg-neutral-950 p-1">
           {(

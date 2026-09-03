@@ -13,6 +13,10 @@ export interface AnimatedCandidate {
   kind: 'waapi' | 'smil' | 'gsap' | 'gsap-scroll';
   /** Milliseconds, when the technology reports one. */
   durationMs: number | null;
+  /** Which probe found it, so clicking the row can go back to the right world. */
+  source: 'census' | 'gsap';
+  /** Position within that probe's own list. */
+  sourceIndex: number;
 }
 
 /** What the census found in the page's DOM. Gathered from the ISOLATED world. */

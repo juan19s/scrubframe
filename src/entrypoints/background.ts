@@ -13,7 +13,7 @@ import {
   registerTabCleanup,
 } from '../background/selection';
 import { measureSelection } from '../background/measure';
-import { probePage } from '../background/page-probe';
+import { probePage, selectCandidate } from '../background/page-probe';
 import { projectStateFor, setProjectName } from '../background/project';
 import { runAttachSpike } from '../background/spike';
 import type { Request, ResultMap } from '../shared/messaging';
@@ -61,6 +61,15 @@ async function handle(
       return startPicking(message.tabId, 'region');
     case 'probe/page':
       return probePage(message.tabId);
+    case 'probe/select': {
+      const picked = await selectCandidate(
+        message.tabId,
+        message.source,
+        message.sourceIndex,
+        message.label,
+      );
+      return recordSelection(message.tabId, picked);
+    }
     case 'region/drawn':
       return recordRegion(senderTab(sender), message);
     case 'measure/element':

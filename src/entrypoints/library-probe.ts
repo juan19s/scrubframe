@@ -69,6 +69,8 @@ export default defineUnlistedScript(() => {
           driver: scrollDriven ? 'GSAP + ScrollTrigger' : 'GSAP',
           kind: scrollDriven ? 'gsap-scroll' : 'gsap',
           durationMs: Math.round((item.duration?.() ?? 0) * 1000),
+          source: 'gsap',
+          sourceIndex: candidates.length,
         });
       }
     }

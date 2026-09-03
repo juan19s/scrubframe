@@ -65,6 +65,8 @@ export function takeCensus(): AnimationCensus {
         'script',
       kind: 'waapi',
       durationMs: duration,
+      source: 'census',
+      sourceIndex: candidates.length,
     });
   }
 
@@ -87,6 +89,8 @@ export function takeCensus(): AnimationCensus {
       driver: `SMIL <${node.tagName}>`,
       kind: 'smil',
       durationMs: null,
+      source: 'census',
+      sourceIndex: candidates.length,
     });
   }
 

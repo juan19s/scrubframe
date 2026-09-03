@@ -1,4 +1,5 @@
 import type { ProbeResult } from '../../background/page-probe';
+import type { AnimatedCandidate } from '../../shared/probe';
 import type { AdapterId } from '../../shared/types';
 
 /**
@@ -14,10 +15,14 @@ export function ProbeCard({
   probe,
   current,
   onUse,
+  onSelect,
+  busy,
 }: {
   probe: ProbeResult;
   current: AdapterId;
   onUse: (adapter: AdapterId) => void;
+  onSelect: (candidate: AnimatedCandidate) => void;
+  busy: boolean;
 }) {
   const { census, libraries, recommendation } = probe;
   const agrees = recommendation.adapter === current;
@@ -70,19 +75,31 @@ export function ProbeCard({
           <summary className="cursor-pointer text-[10px] text-neutral-500 hover:text-neutral-300">
             {census.candidates.length} animated element(s) — pick one of these
           </summary>
+          <p className="mt-1 text-[10px] leading-snug text-neutral-500">
+            Click one to select it. Scrubframe marks it on the page and switches to the
+            adapter that can step it.
+          </p>
           <ul className="mt-1 space-y-0.5">
             {census.candidates.slice(0, 20).map((candidate, index) => (
-              <li
-                key={`${candidate.label}-${index}`}
-                className="flex items-baseline gap-1 truncate font-mono text-[10px]"
-                title={`${candidate.label} — ${candidate.driver}`}
-              >
-                <span className={TONE[candidate.kind]}>{candidate.label}</span>
-                <span className="text-neutral-600">{candidate.driver}</span>
-                {candidate.durationMs ? (
-                  <span className="text-neutral-600">{Math.round(candidate.durationMs)}ms</span>
-                ) : null}
-                <span className="ml-auto shrink-0 text-neutral-700">{USE[candidate.kind]}</span>
+              <li key={`${candidate.label}-${index}`}>
+                <button
+                  type="button"
+                  disabled={busy || candidate.kind === 'smil'}
+                  onClick={() => onSelect(candidate)}
+                  title={
+                    candidate.kind === 'smil'
+                      ? 'SMIL cannot be stepped by anything'
+                      : `Select ${candidate.label} and switch to ${USE[candidate.kind]}`
+                  }
+                  className="flex w-full items-baseline gap-1 truncate rounded px-1 py-0.5 text-left font-mono text-[10px] transition hover:bg-neutral-800/70 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  <span className={TONE[candidate.kind]}>{candidate.label}</span>
+                  <span className="text-neutral-600">{candidate.driver}</span>
+                  {candidate.durationMs ? (
+                    <span className="text-neutral-600">{Math.round(candidate.durationMs)}ms</span>
+                  ) : null}
+                  <span className="ml-auto shrink-0 text-neutral-500">{USE[candidate.kind]}</span>
+                </button>
               </li>
             ))}
           </ul>
